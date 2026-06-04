@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/models"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -14,11 +15,12 @@ import (
 // WorkoutHandler handles workout endpoints.
 type WorkoutHandler struct {
 	workoutService *service.WorkoutService
+	publisher      broker.Publisher
 }
 
 // NewWorkoutHandler creates a new WorkoutHandler.
-func NewWorkoutHandler(workoutService *service.WorkoutService) *WorkoutHandler {
-	return &WorkoutHandler{workoutService: workoutService}
+func NewWorkoutHandler(workoutService *service.WorkoutService, publisher broker.Publisher) *WorkoutHandler {
+	return &WorkoutHandler{workoutService: workoutService, publisher: publisher}
 }
 
 type workoutExerciseRequest struct {
@@ -29,10 +31,10 @@ type workoutExerciseRequest struct {
 }
 
 type workoutRequest struct {
-	Title           string                  `json:"title"`
-	Date            string                  `json:"date"`
-	DurationMinutes int                     `json:"duration_minutes"`
-	Notes           string                  `json:"notes"`
+	Title           string                   `json:"title"`
+	Date            string                   `json:"date"`
+	DurationMinutes int                      `json:"duration_minutes"`
+	Notes           string                   `json:"notes"`
 	Exercises       []workoutExerciseRequest `json:"exercises"`
 }
 
@@ -114,6 +116,13 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workout.ID = id
+
+	_ = h.publisher.Publish(r.Context(), broker.NewEvent(broker.EventWorkoutCreated, broker.Payload{
+		WorkoutID: workout.ID,
+		UserID:    workout.UserID,
+		Title:     workout.Title,
+	}))
+
 	writeJSON(w, http.StatusCreated, workout)
 }
 

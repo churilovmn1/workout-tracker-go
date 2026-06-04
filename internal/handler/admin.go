@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/models"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -14,11 +15,12 @@ import (
 // AdminHandler handles trainer/admin endpoints.
 type AdminHandler struct {
 	adminService *service.AdminService
+	publisher    broker.Publisher
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(adminService *service.AdminService) *AdminHandler {
-	return &AdminHandler{adminService: adminService}
+func NewAdminHandler(adminService *service.AdminService, publisher broker.Publisher) *AdminHandler {
+	return &AdminHandler{adminService: adminService, publisher: publisher}
 }
 
 type commentRequest struct {
@@ -98,6 +100,11 @@ func (h *AdminHandler) SetComment(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to set comment")
 		return
 	}
+
+	_ = h.publisher.Publish(r.Context(), broker.NewEvent(broker.EventWorkoutCommented, broker.Payload{
+		WorkoutID: workoutID,
+		Comment:   req.Comment,
+	}))
 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

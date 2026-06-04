@@ -1,6 +1,10 @@
 package handler
 
 import (
+	"net/http/pprof"
+	"time"
+
+	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -13,21 +17,35 @@ func NewRouter(
 	workoutService *service.WorkoutService,
 	templateService *service.TemplateService,
 	adminService *service.AdminService,
+	publisher broker.Publisher,
 	webDir string,
 ) chi.Router {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(NewRateLimiter(100, time.Minute).Middleware)
 
 	authHandler := NewAuthHandler(authService)
 	exerciseHandler := NewExerciseHandler(exerciseService)
-	workoutHandler := NewWorkoutHandler(workoutService)
+	workoutHandler := NewWorkoutHandler(workoutService, publisher)
 	templateHandler := NewTemplateHandler(templateService, workoutService)
-	adminHandler := NewAdminHandler(adminService)
+	adminHandler := NewAdminHandler(adminService, publisher)
 	webHandler := NewWebHandler(webDir)
 
 	r.Get("/", webHandler.Index)
 	r.Handle("/static/*", webHandler.StaticHandler())
+
+	// pprof profiler — admin only.
+	r.Route("/debug/pprof", func(r chi.Router) {
+		r.Use(AuthMiddleware(authService))
+		r.Use(AdminOnly)
+		r.HandleFunc("/", pprof.Index)
+		r.HandleFunc("/cmdline", pprof.Cmdline)
+		r.HandleFunc("/profile", pprof.Profile)
+		r.HandleFunc("/symbol", pprof.Symbol)
+		r.HandleFunc("/trace", pprof.Trace)
+		r.HandleFunc("/{profile}", pprof.Index) // heap, goroutine, allocs, ...
+	})
 
 	r.Route("/api", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {

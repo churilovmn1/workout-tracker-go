@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL string
 	JWTSecret   string
 	BotToken    string
+	RedisURL    string
 }
 
 // Load reads configuration from environment variables.
@@ -25,6 +26,7 @@ func Load() (*Config, error) {
 		DatabaseURL: dbURL,
 		JWTSecret:   getEnvOrDefault("JWT_SECRET", "default-secret-change-me"),
 		BotToken:    os.Getenv("TELEGRAM_BOT_TOKEN"),
+		RedisURL:    os.Getenv("REDIS_URL"),
 	}
 
 	return cfg, nil

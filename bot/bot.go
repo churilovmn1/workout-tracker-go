@@ -35,9 +35,9 @@ const (
 )
 
 type session struct {
-	state    sessionState
-	workout  *models.Workout
-	userID   int
+	state   sessionState
+	workout *models.Workout
+	userID  int
 }
 
 // New creates a new Bot instance.
@@ -132,21 +132,27 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message, telegram
 }
 
 func (b *Bot) cmdStart(ctx context.Context, msg *tgbotapi.Message, telegramID int64) {
-	_, err := b.userRepo.GetByTelegramID(ctx, telegramID)
+	user, err := b.userRepo.GetByTelegramID(ctx, telegramID)
 	if err != nil {
 		tgID := telegramID
-		user := &models.User{
+		user = &models.User{
 			Login:        fmt.Sprintf("tg_%d", telegramID),
 			Email:        fmt.Sprintf("tg_%d@telegram.local", telegramID),
 			PasswordHash: "-",
 			Role:         models.RoleUser,
 			TelegramID:   &tgID,
 		}
-		_, err = b.userRepo.Create(ctx, user)
-		if err != nil {
+		id, createErr := b.userRepo.Create(ctx, user)
+		if createErr != nil {
 			b.send(msg.Chat.ID, "Ошибка регистрации. Попробуй позже.")
 			return
 		}
+		user.ID = id
+	}
+
+	// Persist the chat id so the notification worker can reach this user.
+	if err := b.userRepo.SetTelegramChatID(ctx, user.ID, msg.Chat.ID); err != nil {
+		log.Printf("failed to store telegram chat id: %v", err)
 	}
 
 	b.send(msg.Chat.ID, fmt.Sprintf(
@@ -384,6 +390,15 @@ func (b *Bot) send(chatID int64, text string) {
 	if _, err := b.api.Send(reply); err != nil {
 		log.Printf("bot send error: %v", err)
 	}
+}
+
+// Notify sends a plain-text message to a chat. It implements broker.Notifier so
+// the notification worker can deliver Telegram messages.
+func (b *Bot) Notify(chatID int64, text string) error {
+	if _, err := b.api.Send(tgbotapi.NewMessage(chatID, text)); err != nil {
+		return fmt.Errorf("notify chat %d: %w", chatID, err)
+	}
+	return nil
 }
 
 func calcStreak(workouts []models.Workout) int {

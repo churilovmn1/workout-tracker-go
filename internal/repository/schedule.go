@@ -77,6 +77,32 @@ func (r *ScheduleRepository) ListByTrainerWeek(ctx context.Context, trainerID in
 	})
 }
 
+// ListUpcoming returns planned entries (across all trainers) scheduled within
+// [from, to). Used by the reminder scheduler.
+func (r *ScheduleRepository) ListUpcoming(ctx context.Context, from, to time.Time) ([]models.ScheduleEntry, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT s.id, s.trainer_id, s.client_id, s.title, s.scheduled_at,
+		        s.duration_minutes, s.status, s.notes, s.created_at, u.login
+		 FROM schedule s
+		 JOIN users u ON u.id = s.client_id
+		 WHERE s.status = 'planned'
+		   AND s.scheduled_at >= $1
+		   AND s.scheduled_at < $2
+		 ORDER BY s.scheduled_at`,
+		from, to)
+	if err != nil {
+		return nil, fmt.Errorf("list upcoming schedule: %w", err)
+	}
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.ScheduleEntry, error) {
+		var e models.ScheduleEntry
+		err := row.Scan(&e.ID, &e.TrainerID, &e.ClientID, &e.Title, &e.ScheduledAt,
+			&e.DurationMinutes, &e.Status, &e.Notes, &e.CreatedAt, &e.ClientLogin)
+		return e, err
+	})
+}
+
 // Update modifies a schedule entry owned by the trainer.
 func (r *ScheduleRepository) Update(ctx context.Context, e *models.ScheduleEntry) error {
 	_, err := r.pool.Exec(ctx,

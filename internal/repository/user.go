@@ -23,10 +23,10 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 func (r *UserRepository) Create(ctx context.Context, user *models.User) (int, error) {
 	var id int
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO users (login, email, password_hash, role, telegram_id)
-		 VALUES ($1, $2, $3, $4, $5)
+		`INSERT INTO users (login, email, password_hash, role, telegram_id, telegram_chat_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)
 		 RETURNING id`,
-		user.Login, user.Email, user.PasswordHash, user.Role, user.TelegramID,
+		user.Login, user.Email, user.PasswordHash, user.Role, user.TelegramID, user.TelegramChatID,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("create user: %w", err)
@@ -38,9 +38,9 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) (int, er
 func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, error) {
 	u := &models.User{}
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, login, email, password_hash, role, telegram_id, created_at
+		`SELECT id, login, email, password_hash, role, telegram_id, telegram_chat_id, created_at
 		 FROM users WHERE id = $1`, id,
-	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.CreatedAt)
+	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.TelegramChatID, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user by id: %w", err)
 	}
@@ -51,9 +51,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 func (r *UserRepository) GetByLogin(ctx context.Context, login string) (*models.User, error) {
 	u := &models.User{}
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, login, email, password_hash, role, telegram_id, created_at
+		`SELECT id, login, email, password_hash, role, telegram_id, telegram_chat_id, created_at
 		 FROM users WHERE login = $1`, login,
-	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.CreatedAt)
+	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.TelegramChatID, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user by login: %w", err)
 	}
@@ -64,9 +64,9 @@ func (r *UserRepository) GetByLogin(ctx context.Context, login string) (*models.
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	u := &models.User{}
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, login, email, password_hash, role, telegram_id, created_at
+		`SELECT id, login, email, password_hash, role, telegram_id, telegram_chat_id, created_at
 		 FROM users WHERE email = $1`, email,
-	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.CreatedAt)
+	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.TelegramChatID, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user by email: %w", err)
 	}
@@ -77,19 +77,29 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 func (r *UserRepository) GetByTelegramID(ctx context.Context, telegramID int64) (*models.User, error) {
 	u := &models.User{}
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, login, email, password_hash, role, telegram_id, created_at
+		`SELECT id, login, email, password_hash, role, telegram_id, telegram_chat_id, created_at
 		 FROM users WHERE telegram_id = $1`, telegramID,
-	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.CreatedAt)
+	).Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.TelegramChatID, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get user by telegram id: %w", err)
 	}
 	return u, nil
 }
 
+// SetTelegramChatID stores the Telegram chat id used for outbound notifications.
+func (r *UserRepository) SetTelegramChatID(ctx context.Context, userID int, chatID int64) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE users SET telegram_chat_id = $1 WHERE id = $2`, chatID, userID)
+	if err != nil {
+		return fmt.Errorf("set telegram chat id: %w", err)
+	}
+	return nil
+}
+
 // List returns all users.
 func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, login, email, password_hash, role, telegram_id, created_at
+		`SELECT id, login, email, password_hash, role, telegram_id, telegram_chat_id, created_at
 		 FROM users ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
@@ -98,7 +108,7 @@ func (r *UserRepository) List(ctx context.Context) ([]models.User, error) {
 
 	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (models.User, error) {
 		var u models.User
-		err := row.Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.CreatedAt)
+		err := row.Scan(&u.ID, &u.Login, &u.Email, &u.PasswordHash, &u.Role, &u.TelegramID, &u.TelegramChatID, &u.CreatedAt)
 		return u, err
 	})
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/churilovmn1/workout-tracker/bot"
 	"github.com/churilovmn1/workout-tracker/config"
+	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/handler"
 	"github.com/churilovmn1/workout-tracker/internal/repository"
 	"github.com/churilovmn1/workout-tracker/internal/service"
@@ -43,16 +44,39 @@ func main() {
 	templateService := service.NewTemplateService(templateRepo)
 	adminService := service.NewAdminService(userRepo, workoutRepo, scheduleRepo)
 
+	var tgBot *bot.Bot
 	if cfg.BotToken != "" {
-		tgBot, err := bot.New(cfg.BotToken, userRepo, workoutService, exerciseService, templateService)
+		b, err := bot.New(cfg.BotToken, userRepo, workoutService, exerciseService, templateService)
 		if err != nil {
 			log.Printf("failed to create telegram bot: %v", err)
 		} else {
+			tgBot = b
 			go tgBot.Start(ctx)
 		}
 	}
 
-	router := handler.NewRouter(authService, exerciseService, workoutService, templateService, adminService, "web")
+	// Message broker (optional). When REDIS_URL is set, events are queued in
+	// Redis and a worker delivers Telegram notifications; otherwise publishing
+	// is a no-op.
+	var publisher broker.Publisher = broker.NoopPublisher{}
+	if cfg.RedisURL != "" {
+		rb, err := broker.Connect(ctx, cfg.RedisURL)
+		if err != nil {
+			log.Printf("failed to connect to redis: %v", err)
+		} else {
+			defer rb.Close()
+			publisher = rb
+
+			var notifier broker.Notifier
+			if tgBot != nil {
+				notifier = tgBot
+			}
+			worker := broker.NewWorker(rb, notifier, userRepo, workoutRepo, scheduleRepo)
+			go worker.Run(ctx)
+		}
+	}
+
+	router := handler.NewRouter(authService, exerciseService, workoutService, templateService, adminService, publisher, "web")
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
