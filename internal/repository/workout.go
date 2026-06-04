@@ -186,6 +186,34 @@ func (r *WorkoutRepository) GetWeeklyVolume(ctx context.Context, userID int) (fl
 	return volume, nil
 }
 
+// GetExerciseProgress returns the max weight per training day for a given
+// exercise and user, ordered by date ascending (for charting).
+func (r *WorkoutRepository) GetExerciseProgress(ctx context.Context, userID, exerciseID int) ([]models.ExerciseProgress, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT w.date, MAX(we.weight_kg) AS max_weight
+		 FROM workout_exercises we
+		 JOIN workouts w ON w.id = we.workout_id
+		 WHERE w.user_id = $1 AND we.exercise_id = $2
+		 GROUP BY w.date
+		 ORDER BY w.date ASC`,
+		userID, exerciseID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("get exercise progress: %w", err)
+	}
+	defer rows.Close()
+
+	var result []models.ExerciseProgress
+	for rows.Next() {
+		var p models.ExerciseProgress
+		if err := rows.Scan(&p.Date, &p.MaxWeight); err != nil {
+			return nil, fmt.Errorf("scan exercise progress: %w", err)
+		}
+		result = append(result, p)
+	}
+	return result, rows.Err()
+}
+
 func (r *WorkoutRepository) getExercises(ctx context.Context, workoutID int) ([]models.WorkoutExercise, error) {
 	rows, err := r.pool.Query(ctx,
 		`SELECT id, workout_id, exercise_id, sets, reps, weight_kg

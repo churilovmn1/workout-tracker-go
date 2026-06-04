@@ -24,6 +24,7 @@ type userRepository interface {
 // Claims represents JWT token payload.
 type Claims struct {
 	UserID int         `json:"user_id"`
+	Login  string      `json:"login"`
 	Role   models.Role `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -83,6 +84,7 @@ func (s *AuthService) Login(ctx context.Context, login, password string) (string
 func (s *AuthService) GenerateToken(user *models.User) (string, error) {
 	claims := &Claims{
 		UserID: user.ID,
+		Login:  user.Login,
 		Role:   user.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),

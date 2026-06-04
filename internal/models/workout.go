@@ -15,6 +15,12 @@ type Workout struct {
 	Exercises       []WorkoutExercise `json:"exercises,omitempty" db:"-"`
 }
 
+// ExerciseProgress is one data-point in a per-exercise weight history.
+type ExerciseProgress struct {
+	Date      time.Time `json:"date"`
+	MaxWeight float64   `json:"max_weight"`
+}
+
 // WorkoutExercise represents a specific exercise performed during a workout.
 type WorkoutExercise struct {
 	ID         int     `json:"id" db:"id"`

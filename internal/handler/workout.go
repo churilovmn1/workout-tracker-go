@@ -223,6 +223,24 @@ func (h *WorkoutHandler) PersonalRecords(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, records)
 }
 
+// ExerciseProgress returns max weight per training day for a given exercise.
+// Query param: exercise_id (required).
+func (h *WorkoutHandler) ExerciseProgress(w http.ResponseWriter, r *http.Request) {
+	exerciseID, err := strconv.Atoi(r.URL.Query().Get("exercise_id"))
+	if err != nil || exerciseID <= 0 {
+		writeError(w, http.StatusBadRequest, "exercise_id is required")
+		return
+	}
+
+	progress, err := h.workoutService.GetExerciseProgress(r.Context(), getUserID(r), exerciseID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get exercise progress")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, progress)
+}
+
 // WeeklyVolume returns total volume for the last 7 days.
 func (h *WorkoutHandler) WeeklyVolume(w http.ResponseWriter, r *http.Request) {
 	volume, err := h.workoutService.GetWeeklyVolume(r.Context(), getUserID(r))

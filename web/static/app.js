@@ -73,7 +73,7 @@ function showApp() {
 function parseToken() {
     try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        currentUser = { id: payload.user_id, role: payload.role };
+        currentUser = { id: payload.user_id, login: payload.login, role: payload.role };
         setupNav();
     } catch {
         logout();
@@ -89,7 +89,7 @@ function setupNav() {
     $('#nav-schedule').style.display = isAdmin ? '' : 'none';
     $('#nav-admin').style.display    = isAdmin ? '' : 'none';
     // Username label
-    $('.user-name').textContent = isAdmin ? 'Тренер' : 'User #' + currentUser.id;
+    $('.user-name').textContent = isAdmin ? 'Тренер' : (currentUser.login || 'User #' + currentUser.id);
 }
 
 function logout() {
@@ -556,34 +556,259 @@ async function deleteExercise(id) {
 
 // ── Stats ─────────────────────────────────────────────────────────────────
 
+// Module-level state for charts so we can destroy/recreate them on reload.
+let _chartWeight = null;
+let _chartPR     = null;
+// All workout exercises keyed by exercise_id for PR history lookups.
+let _prHistory   = {}; // exercise_id -> [{date, weight_kg}]
+// Exercise map id -> name
+let _exMap       = {};
+
 async function loadStats() {
     try {
-        const [prData, volumeData] = await Promise.all([
+        const [prData, volumeData, exercises, metrics] = await Promise.all([
             api('GET', '/stats/pr'),
             api('GET', '/stats/volume'),
+            api('GET', '/exercises'),
+            api('GET', '/metrics'),
         ]);
 
-        $('#stat-volume').textContent = Math.round(volumeData.weekly_volume).toLocaleString() + ' кг';
-        const exercises = window._exercises || [];
-        const prList = $('#pr-list');
+        // Build lookup map
+        _exMap = {};
+        (exercises || []).forEach((e) => { _exMap[e.id] = e.name; });
 
+        // ── Summary cards ────────────────────────────────────────────────
+        $('#stat-volume').textContent = Math.round(volumeData.weekly_volume).toLocaleString() + ' кг';
+
+        // ── Personal records table ───────────────────────────────────────
+        const prList = $('#pr-list');
         if (!prData || !prData.length) {
             prList.innerHTML = '<p style="color:var(--text-muted)">Пока нет рекордов</p>';
             $('#stat-pr-count').textContent = '0';
-            return;
-        }
-
-        $('#stat-pr-count').textContent = prData.length;
-        prList.innerHTML = `<table>
-            <thead><tr><th>Упражнение</th><th>Вес</th><th>Подходы × Повторы</th></tr></thead>
-            <tbody>${prData.map((r) => {
-                const ex = exercises.find((e) => e.id === r.exercise_id);
-                return `<tr>
-                    <td>${esc(ex ? ex.name : '#' + r.exercise_id)}</td>
+        } else {
+            $('#stat-pr-count').textContent = prData.length;
+            prList.innerHTML = `<table>
+                <thead><tr><th>Упражнение</th><th>Вес</th><th>Подходы × Повторы</th></tr></thead>
+                <tbody>${prData.map((r) => `<tr>
+                    <td>${esc(_exMap[r.exercise_id] || '#' + r.exercise_id)}</td>
                     <td><span class="badge badge-pr">${r.weight_kg} кг</span></td>
                     <td>${r.sets}×${r.reps}</td>
-                </tr>`;
-            }).join('')}</tbody></table>`;
+                </tr>`).join('')}</tbody></table>`;
+        }
+
+        // ── PR-exercise select ───────────────────────────────────────────
+        const sel = $('#pr-chart-exercise');
+        const prevVal = sel.value;
+        sel.innerHTML = '<option value="">— выберите упражнение —</option>';
+        (prData || []).forEach((r) => {
+            const opt = document.createElement('option');
+            opt.value = r.exercise_id;
+            opt.textContent = _exMap[r.exercise_id] || '#' + r.exercise_id;
+            sel.appendChild(opt);
+        });
+        if (prevVal) sel.value = prevVal;
+
+        // ── Charts ───────────────────────────────────────────────────────
+        renderWeightChart(metrics || []);
+        renderPRChart(sel.value ? parseInt(sel.value) : null);
+
+        // ── Metrics table ────────────────────────────────────────────────
+        renderMetricsTable(metrics || []);
+
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Body-weight chart ──────────────────────────────────────────────────────
+
+function renderWeightChart(metrics) {
+    const withWeight = metrics.filter((m) => m.weight_kg != null);
+    const canvas = $('#chart-weight');
+    const empty  = $('#chart-weight-empty');
+
+    if (_chartWeight) { _chartWeight.destroy(); _chartWeight = null; }
+
+    if (!withWeight.length) {
+        canvas.style.display = 'none';
+        empty.style.display  = '';
+        return;
+    }
+    canvas.style.display = '';
+    empty.style.display  = 'none';
+
+    _chartWeight = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: withWeight.map((m) => formatDate(m.measured_at)),
+            datasets: [{
+                label: 'Вес (кг)',
+                data: withWeight.map((m) => m.weight_kg),
+                borderColor: '#6c63ff',
+                backgroundColor: '#6c63ff22',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { color: '#333' } },
+                y: { ticks: { color: '#888' }, grid: { color: '#333' } },
+            },
+        },
+    });
+}
+
+// ── PR-by-exercise chart ───────────────────────────────────────────────────
+
+async function renderPRChart(exerciseID) {
+    const canvas = $('#chart-pr');
+    const empty  = $('#chart-pr-empty');
+
+    if (_chartPR) { _chartPR.destroy(); _chartPR = null; }
+
+    if (!exerciseID) {
+        canvas.style.display = 'none';
+        empty.style.display  = '';
+        return;
+    }
+
+    try {
+        const points = await api('GET', '/stats/exercise-progress?exercise_id=' + exerciseID);
+
+        if (!points || !points.length) {
+            canvas.style.display = 'none';
+            empty.style.display  = '';
+            return;
+        }
+        canvas.style.display = '';
+        empty.style.display  = 'none';
+
+        _chartPR = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: points.map((p) => formatDate(p.date)),
+                datasets: [{
+                    label: _exMap[exerciseID] || 'Упражнение',
+                    data: points.map((p) => p.max_weight),
+                    borderColor: '#2ecc71',
+                    backgroundColor: '#2ecc7122',
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { color: '#333' } },
+                    y: { ticks: { color: '#888', callback: (v) => v + ' кг' }, grid: { color: '#333' } },
+                },
+            },
+        });
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+$('#pr-chart-exercise').addEventListener('change', (e) => {
+    const id = e.target.value ? parseInt(e.target.value) : null;
+    renderPRChart(id);
+});
+
+// ── Body metrics table ─────────────────────────────────────────────────────
+
+function renderMetricsTable(metrics) {
+    const wrap  = $('#metrics-table-wrap');
+    const empty = $('#metrics-empty');
+    if (!metrics.length) {
+        wrap.innerHTML = '<p id="metrics-empty" style="color:var(--text-muted)">Замеров пока нет.</p>';
+        return;
+    }
+
+    // Show newest first (metrics are sorted oldest-first by API for charts)
+    const rows = [...metrics].reverse().slice(0, 10);
+
+    // Trend arrow: compare each row to the previous chronological entry
+    const trend = (curr, prev, field) => {
+        if (curr[field] == null || prev == null || prev[field] == null) return '';
+        const diff = curr[field] - prev[field];
+        if (Math.abs(diff) < 0.05) return '';
+        return diff > 0
+            ? `<span class="trend-up">▲ ${diff.toFixed(1)}</span>`
+            : `<span class="trend-down">▼ ${Math.abs(diff).toFixed(1)}</span>`;
+    };
+
+    wrap.innerHTML = `<table class="metrics-table">
+        <thead><tr>
+            <th>Дата</th>
+            <th>Вес</th>
+            <th>% жира</th>
+            <th>Грудь</th>
+            <th>Талия</th>
+            <th>Бёдра</th>
+            <th>Бицепс</th>
+            <th></th>
+        </tr></thead>
+        <tbody>${rows.map((m, i) => {
+            const prev = rows[i + 1] || null; // older entry (we reversed above)
+            return `<tr>
+                <td>${formatDate(m.measured_at)}</td>
+                <td>${m.weight_kg != null ? m.weight_kg + ' кг' : '—'} ${trend(m, prev, 'weight_kg')}</td>
+                <td>${m.body_fat_percent != null ? m.body_fat_percent + '%' : '—'} ${trend(m, prev, 'body_fat_percent')}</td>
+                <td>${m.chest_cm != null ? m.chest_cm : '—'}</td>
+                <td>${m.waist_cm != null ? m.waist_cm : '—'} ${trend(m, prev, 'waist_cm')}</td>
+                <td>${m.hips_cm != null ? m.hips_cm : '—'}</td>
+                <td>${m.bicep_cm != null ? m.bicep_cm : '—'} ${trend(m, prev, 'bicep_cm')}</td>
+                <td><button class="btn btn-sm btn-danger" onclick="deleteMetric(${m.id})">×</button></td>
+            </tr>`;
+        }).join('')}</tbody>
+    </table>`;
+}
+
+// ── Metric form ────────────────────────────────────────────────────────────
+
+function toggleMetricForm() {
+    const wrap = $('#metric-form-wrap');
+    const show = wrap.style.display === 'none';
+    wrap.style.display = show ? '' : 'none';
+    if (show) {
+        // Default to today
+        const today = new Date();
+        $('#m-date').value = toISODate ? toISODate(today) : today.toISOString().slice(0, 10);
+    }
+}
+
+$('#metric-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const numOrNull = (id) => {
+        const v = parseFloat($(id).value);
+        return isNaN(v) ? null : v;
+    };
+    const body = {
+        measured_at:      $('#m-date').value || new Date().toISOString().slice(0, 10),
+        weight_kg:        numOrNull('#m-weight'),
+        body_fat_percent: numOrNull('#m-fat'),
+        chest_cm:         numOrNull('#m-chest'),
+        waist_cm:         numOrNull('#m-waist'),
+        hips_cm:          numOrNull('#m-hips'),
+        bicep_cm:         numOrNull('#m-bicep'),
+    };
+    try {
+        await api('POST', '/metrics', body);
+        toast('Замер сохранён!');
+        $('#metric-form').reset();
+        toggleMetricForm();
+        loadStats();
+    } catch (err) { toast(err.message, 'error'); }
+});
+
+async function deleteMetric(id) {
+    if (!confirm('Удалить замер?')) return;
+    try {
+        await api('DELETE', '/metrics/' + id);
+        toast('Замер удалён');
+        loadStats();
     } catch (err) { toast(err.message, 'error'); }
 }
 

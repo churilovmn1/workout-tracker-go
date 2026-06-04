@@ -37,12 +37,14 @@ func main() {
 	workoutRepo := repository.NewWorkoutRepository(pool)
 	templateRepo := repository.NewTemplateRepository(pool)
 	scheduleRepo := repository.NewScheduleRepository(pool)
+	metricsRepo := repository.NewMetricsRepository(pool)
 
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
 	templateService := service.NewTemplateService(templateRepo)
 	adminService := service.NewAdminService(userRepo, workoutRepo, scheduleRepo)
+	metricsService := service.NewMetricsService(metricsRepo)
 
 	var tgBot *bot.Bot
 	if cfg.BotToken != "" {
@@ -76,7 +78,7 @@ func main() {
 		}
 	}
 
-	router := handler.NewRouter(authService, exerciseService, workoutService, templateService, adminService, publisher, "web")
+	router := handler.NewRouter(authService, exerciseService, workoutService, templateService, adminService, metricsService, publisher, "web")
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

@@ -201,6 +201,30 @@ nav .nav-links button:hover:not(.active) { color: var(--text); }
 .stat-value { font-size: 2rem; font-weight: 700; color: var(--primary); }
 .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
 
+/* Charts */
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.chart-card { padding: 20px; }
+
+.chart-empty {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+    padding: 20px 0;
+}
+
+/* Trend arrows */
+.trend-up   { color: var(--danger);  font-size: 0.75rem; font-weight: 600; }
+.trend-down { color: var(--success); font-size: 0.75rem; font-weight: 600; }
+
+/* Metrics table */
+.metrics-table { min-width: 600px; }
+
 /* Tables */
 table { width: 100%; border-collapse: collapse; min-width: 400px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -472,7 +496,8 @@ th { color: var(--text-muted); font-size: 0.8rem; font-weight: 500; text-transfo
     .modal { padding: 16px; }
 
     /* Stats: single column */
-    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid  { grid-template-columns: 1fr 1fr; }
+    .charts-row  { grid-template-columns: 1fr; }
 
     /* Modal actions: stack */
     .modal-actions { flex-direction: column-reverse; }

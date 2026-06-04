@@ -18,6 +18,7 @@ type workoutRepository interface {
 	Delete(ctx context.Context, id, userID int) error
 	GetPersonalRecords(ctx context.Context, userID int) ([]models.WorkoutExercise, error)
 	GetWeeklyVolume(ctx context.Context, userID int) (float64, error)
+	GetExerciseProgress(ctx context.Context, userID, exerciseID int) ([]models.ExerciseProgress, error)
 }
 
 // WorkoutService handles workout business logic.
@@ -77,6 +78,11 @@ func (s *WorkoutService) GetPersonalRecords(ctx context.Context, userID int) ([]
 // GetWeeklyVolume returns total training volume for the last 7 days.
 func (s *WorkoutService) GetWeeklyVolume(ctx context.Context, userID int) (float64, error) {
 	return s.repo.GetWeeklyVolume(ctx, userID)
+}
+
+// GetExerciseProgress returns max weight per training day for a given exercise.
+func (s *WorkoutService) GetExerciseProgress(ctx context.Context, userID, exerciseID int) ([]models.ExerciseProgress, error) {
+	return s.repo.GetExerciseProgress(ctx, userID, exerciseID)
 }
 
 // CopyWorkout creates a new workout based on an existing one.

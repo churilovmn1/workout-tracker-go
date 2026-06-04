@@ -17,6 +17,7 @@ func NewRouter(
 	workoutService *service.WorkoutService,
 	templateService *service.TemplateService,
 	adminService *service.AdminService,
+	metricsService *service.MetricsService,
 	publisher broker.Publisher,
 	webDir string,
 ) chi.Router {
@@ -30,6 +31,7 @@ func NewRouter(
 	workoutHandler := NewWorkoutHandler(workoutService, publisher)
 	templateHandler := NewTemplateHandler(templateService, workoutService)
 	adminHandler := NewAdminHandler(adminService, publisher)
+	metricsHandler := NewMetricsHandler(metricsService)
 	webHandler := NewWebHandler(webDir)
 
 	r.Get("/", webHandler.Index)
@@ -89,6 +91,13 @@ func NewRouter(
 			r.Route("/stats", func(r chi.Router) {
 				r.Get("/pr", workoutHandler.PersonalRecords)
 				r.Get("/volume", workoutHandler.WeeklyVolume)
+				r.Get("/exercise-progress", workoutHandler.ExerciseProgress)
+			})
+
+			r.Route("/metrics", func(r chi.Router) {
+				r.Get("/", metricsHandler.List)
+				r.Post("/", metricsHandler.Create)
+				r.Delete("/{id}", metricsHandler.Delete)
 			})
 
 			r.Route("/admin", func(r chi.Router) {
