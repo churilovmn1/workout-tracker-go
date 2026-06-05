@@ -103,47 +103,7 @@
 
 ## Схема базы данных
 
-```
-┌──────────────────────────────────────────────────────────────┐  
-│  users                                                        │  
-│  id · login · email · password\_hash · role                   │  
-│  telegram\_id · telegram\_chat\_id · created\_at                 │  
-└───────┬──────────────────────────────────────────────────────┘  
-        │ 1                              1  
-        │◄─────────────────────────────────────────────────────┐  
-        │                                                       │  
-        │ n                                                     │ n  
-┌───────▼──────────────┐    ┌──────────────────────────────────▼──┐  
-│  workouts            │    │  schedule                            │  
-│  id · user\_id(FK)    │    │  id · trainer\_id(FK) · client\_id(FK)│  
-│  title · date        │    │  title · scheduled\_at · status       │  
-│  duration\_minutes    │    │  duration\_minutes · notes            │  
-│  notes               │    └──────────────────────────────────────┘  
-│  trainer\_comment     │  
-└───────┬──────────────┘    ┌──────────────────────────────────────┐  
-        │ 1                 │  workout\_templates                   │  
-        │ n                 │  id · user\_id(FK) · name · is\_public │  
-┌───────▼──────────────┐    └───────┬──────────────────────────────┘  
-│  workout\_exercises   │            │ 1  
-│  id · workout\_id(FK) │            │ n  
-│  exercise\_id(FK)     │    ┌───────▼──────────────────────────────┐  
-│  sets · reps         │    │  template\_exercises                  │  
-│  weight\_kg           │    │  id · template\_id(FK) · exercise\_id  │  
-└──────────────────────┘    │  sets · reps · weight\_kg             │  
-                            └──────────────────────────────────────┘  
-  
-┌──────────────────────────────────────────────────────────────┐  
-│  exercises                                                    │  
-│  id · name · muscle\_group · description                      │  
-└──────────────────────────────────────────────────────────────┘  
-  
-┌──────────────────────────────────────────────────────────────┐  
-│  body\_metrics                                                 │  
-│  id · user\_id(FK) · weight\_kg · body\_fat\_percent             │  
-│  chest\_cm · waist\_cm · hips\_cm · bicep\_cm                    │  
-│  measured\_at · created\_at                                     │  
-└──────────────────────────────────────────────────────────────┘
-```
+![Схема БД](photo/bd.png)
 
 
 ## Быстрый старт
