@@ -8,6 +8,7 @@ import (
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // NewRouter sets up all HTTP routes.
@@ -30,12 +31,17 @@ func NewRouter(
 	exerciseHandler := NewExerciseHandler(exerciseService)
 	workoutHandler := NewWorkoutHandler(workoutService, publisher)
 	templateHandler := NewTemplateHandler(templateService, workoutService)
-	adminHandler := NewAdminHandler(adminService, publisher)
+	adminHandler := NewAdminHandler(adminService, workoutService, metricsService, publisher)
 	metricsHandler := NewMetricsHandler(metricsService)
 	webHandler := NewWebHandler(webDir)
 
 	r.Get("/", webHandler.Index)
 	r.Handle("/static/*", webHandler.StaticHandler())
+
+	// Swagger UI — public.
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 
 	// pprof profiler — admin only.
 	r.Route("/debug/pprof", func(r chi.Router) {
@@ -105,6 +111,8 @@ func NewRouter(
 				r.Get("/users", adminHandler.ListUsers)
 				r.Get("/users/{id}/workouts", adminHandler.ListUserWorkouts)
 				r.Post("/users/{id}/workouts", adminHandler.CreateWorkoutForUser)
+				r.Get("/users/{id}/metrics", adminHandler.GetClientMetrics)
+				r.Get("/users/{id}/exercise-progress", adminHandler.GetClientExerciseProgress)
 				r.Put("/workouts/{id}/comment", adminHandler.SetComment)
 				r.Get("/schedule", adminHandler.ListSchedule)
 				r.Post("/schedule", adminHandler.CreateSchedule)

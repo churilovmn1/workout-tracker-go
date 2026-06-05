@@ -14,13 +14,25 @@ import (
 
 // AdminHandler handles trainer/admin endpoints.
 type AdminHandler struct {
-	adminService *service.AdminService
-	publisher    broker.Publisher
+	adminService   *service.AdminService
+	workoutService *service.WorkoutService
+	metricsService *service.MetricsService
+	publisher      broker.Publisher
 }
 
 // NewAdminHandler creates a new AdminHandler.
-func NewAdminHandler(adminService *service.AdminService, publisher broker.Publisher) *AdminHandler {
-	return &AdminHandler{adminService: adminService, publisher: publisher}
+func NewAdminHandler(
+	adminService *service.AdminService,
+	workoutService *service.WorkoutService,
+	metricsService *service.MetricsService,
+	publisher broker.Publisher,
+) *AdminHandler {
+	return &AdminHandler{
+		adminService:   adminService,
+		workoutService: workoutService,
+		metricsService: metricsService,
+		publisher:      publisher,
+	}
 }
 
 type commentRequest struct {
@@ -57,6 +69,14 @@ func mondayOf(t time.Time) time.Time {
 // ── Users ──────────────────────────────────────────────────────────────────
 
 // ListUsers returns all registered users.
+//
+// @Summary      List all users
+// @Tags         admin
+// @Produce      json
+// @Success      200  {array}   models.User
+// @Failure      500  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/users [get]
 func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.adminService.ListUsers(r.Context())
 	if err != nil {
@@ -67,6 +87,15 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListUserWorkouts returns all workouts for a specific user.
+//
+// @Summary      List client workouts
+// @Tags         admin
+// @Produce      json
+// @Param        id   path      int  true  "Client user ID"
+// @Success      200  {array}   models.Workout
+// @Failure      400  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/users/{id}/workouts [get]
 func (h *AdminHandler) ListUserWorkouts(w http.ResponseWriter, r *http.Request) {
 	userID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -83,6 +112,17 @@ func (h *AdminHandler) ListUserWorkouts(w http.ResponseWriter, r *http.Request) 
 }
 
 // SetComment sets a trainer comment on a workout.
+//
+// @Summary      Set trainer comment
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int             true  "Workout ID"
+// @Param        body  body      commentRequest  true  "Comment"
+// @Success      200   {object}  map[string]bool
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/workouts/{id}/comment [put]
 func (h *AdminHandler) SetComment(w http.ResponseWriter, r *http.Request) {
 	workoutID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -110,6 +150,17 @@ func (h *AdminHandler) SetComment(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateWorkoutForUser creates a workout on behalf of a user.
+//
+// @Summary      Create workout for client
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int             true  "Client user ID"
+// @Param        body  body      workoutRequest  true  "Workout data"
+// @Success      201   {object}  models.Workout
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/users/{id}/workouts [post]
 func (h *AdminHandler) CreateWorkoutForUser(w http.ResponseWriter, r *http.Request) {
 	userID, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -163,6 +214,14 @@ func (h *AdminHandler) CreateWorkoutForUser(w http.ResponseWriter, r *http.Reque
 // ── Schedule ───────────────────────────────────────────────────────────────
 
 // ListSchedule returns schedule entries for the authenticated trainer's week.
+//
+// @Summary      List trainer schedule
+// @Tags         admin
+// @Produce      json
+// @Param        week  query     string  false  "Week start date (YYYY-MM-DD). Defaults to current week."
+// @Success      200   {array}   models.ScheduleEntry
+// @Security     BearerAuth
+// @Router       /admin/schedule [get]
 func (h *AdminHandler) ListSchedule(w http.ResponseWriter, r *http.Request) {
 	weekStr := r.URL.Query().Get("week")
 	var base time.Time
@@ -186,6 +245,16 @@ func (h *AdminHandler) ListSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateSchedule adds a new schedule entry.
+//
+// @Summary      Create schedule entry
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        body  body      scheduleCreateRequest  true  "Schedule data"
+// @Success      201   {object}  models.ScheduleEntry
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/schedule [post]
 func (h *AdminHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 	var req scheduleCreateRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -229,6 +298,19 @@ func (h *AdminHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateSchedule modifies status or fields of a schedule entry.
+//
+// @Summary      Update schedule entry
+// @Tags         admin
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int                    true  "Schedule entry ID"
+// @Param        body  body      scheduleUpdateRequest  true  "Updated fields"
+// @Success      200   {object}  models.ScheduleEntry
+// @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Failure      404   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/schedule/{id} [put]
 func (h *AdminHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -285,6 +367,15 @@ func (h *AdminHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteSchedule removes a schedule entry.
+//
+// @Summary      Delete schedule entry
+// @Tags         admin
+// @Param        id   path  int  true  "Schedule entry ID"
+// @Success      204
+// @Failure      400  {object}  errorResponse
+// @Failure      403  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/schedule/{id} [delete]
 func (h *AdminHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -302,4 +393,60 @@ func (h *AdminHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// ── Client analytics (trainer view) ───────────────────────────────────────
+
+// GetClientMetrics returns body metrics for a specific client.
+//
+// @Summary      Client body metrics
+// @Tags         admin
+// @Produce      json
+// @Param        id   path      int  true  "Client user ID"
+// @Success      200  {array}   models.BodyMetric
+// @Failure      400  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/users/{id}/metrics [get]
+func (h *AdminHandler) GetClientMetrics(w http.ResponseWriter, r *http.Request) {
+	clientID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	metrics, err := h.metricsService.ListByUser(r.Context(), clientID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get client metrics")
+		return
+	}
+	writeJSON(w, http.StatusOK, metrics)
+}
+
+// GetClientExerciseProgress returns exercise weight history for a specific client.
+//
+// @Summary      Client exercise progress
+// @Tags         admin
+// @Produce      json
+// @Param        id           path      int  true  "Client user ID"
+// @Param        exercise_id  query     int  true  "Exercise ID"
+// @Success      200          {array}   models.ExerciseProgress
+// @Failure      400          {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /admin/users/{id}/exercise-progress [get]
+func (h *AdminHandler) GetClientExerciseProgress(w http.ResponseWriter, r *http.Request) {
+	clientID, err := strconv.Atoi(chi.URLParam(r, "id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	exerciseID, err := strconv.Atoi(r.URL.Query().Get("exercise_id"))
+	if err != nil || exerciseID <= 0 {
+		writeError(w, http.StatusBadRequest, "exercise_id is required")
+		return
+	}
+	progress, err := h.workoutService.GetExerciseProgress(r.Context(), clientID, exerciseID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to get client exercise progress")
+		return
+	}
+	writeJSON(w, http.StatusOK, progress)
 }

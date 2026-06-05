@@ -33,6 +33,17 @@ type tokenResponse struct {
 }
 
 // Register handles user registration.
+//
+// @Summary      Register
+// @Description  Create a new user account
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      registerRequest  true  "Registration data"
+// @Success      201   {object}  models.User
+// @Failure      400   {object}  errorResponse
+// @Failure      409   {object}  errorResponse
+// @Router       /auth/register [post]
 func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -60,6 +71,17 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 }
 
 // Login handles user authentication.
+//
+// @Summary      Login
+// @Description  Authenticate and receive a JWT token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      loginRequest   true  "Credentials"
+// @Success      200   {object}  tokenResponse
+// @Failure      400   {object}  errorResponse
+// @Failure      401   {object}  errorResponse
+// @Router       /auth/login [post]
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 	if err := decodeJSON(r, &req); err != nil {

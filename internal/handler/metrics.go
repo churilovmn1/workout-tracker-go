@@ -31,6 +31,13 @@ type metricRequest struct {
 }
 
 // List returns all body metrics for the authenticated user.
+//
+// @Summary      List body metrics
+// @Tags         metrics
+// @Produce      json
+// @Success      200  {array}   models.BodyMetric
+// @Security     BearerAuth
+// @Router       /metrics [get]
 func (h *MetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 	metrics, err := h.metricsService.ListByUser(r.Context(), getUserID(r))
 	if err != nil {
@@ -41,6 +48,16 @@ func (h *MetricsHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create adds a new body metric snapshot.
+//
+// @Summary      Add body metric
+// @Tags         metrics
+// @Accept       json
+// @Produce      json
+// @Param        body  body      metricRequest   true  "Metric data"
+// @Success      201   {object}  models.BodyMetric
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /metrics [post]
 func (h *MetricsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req metricRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -76,6 +93,15 @@ func (h *MetricsHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete removes a body metric owned by the user.
+//
+// @Summary      Delete body metric
+// @Tags         metrics
+// @Param        id   path  int  true  "Metric ID"
+// @Success      204
+// @Failure      400  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /metrics/{id} [delete]
 func (h *MetricsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

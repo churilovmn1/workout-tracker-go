@@ -855,11 +855,16 @@ let adminCurrentUserID = null;
 let adminCurrentLogin = '';
 
 async function loadAdminUserWorkouts(userID, login) {
-    $('#admin-users-view').style.display  = 'none';
+    $('#admin-users-view').style.display    = 'none';
     $('#admin-workouts-view').style.display = '';
     $('#admin-user-title').textContent = 'Тренировки: ' + login;
     adminCurrentUserID = userID;
     adminCurrentLogin  = login;
+
+    // Reset to workouts tab and destroy stale charts from a previous client
+    switchClientTab('workouts');
+    if (_clientChartWeight) { _clientChartWeight.destroy(); _clientChartWeight = null; }
+    if (_clientChartPR)     { _clientChartPR.destroy();     _clientChartPR = null; }
 
     try {
         const workouts = await api('GET', '/admin/users/' + userID + '/workouts');
@@ -891,9 +896,144 @@ async function loadAdminUserWorkouts(userID, login) {
 }
 
 function showAdminUsers() {
-    $('#admin-users-view').style.display  = '';
+    $('#admin-users-view').style.display    = '';
     $('#admin-workouts-view').style.display = 'none';
 }
+
+// ── Client sub-tabs (Тренировки / Прогресс) ───────────────────────────────
+
+let _clientChartWeight = null;
+let _clientChartPR     = null;
+
+function switchClientTab(tab) {
+    $$('#admin-workouts-view .subtab').forEach((b) =>
+        b.classList.toggle('active', b.id === 'client-tab-' + tab));
+    $('#admin-workouts-list').style.display   = tab === 'workouts' ? '' : 'none';
+    $('#admin-progress-view').style.display   = tab === 'progress' ? '' : 'none';
+    if (tab === 'progress') loadClientProgress();
+}
+
+async function loadClientProgress() {
+    if (adminCurrentUserID === null) return;
+    try {
+        const [metrics, exercises] = await Promise.all([
+            api('GET', '/admin/users/' + adminCurrentUserID + '/metrics'),
+            api('GET', '/exercises'),
+        ]);
+
+        // Weight chart
+        renderClientWeightChart(metrics || []);
+
+        // Populate exercise select from all exercises (not just PRs — client may
+        // have data for any of them)
+        const sel = $('#client-pr-exercise');
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">— выберите упражнение —</option>';
+        (exercises || []).forEach((e) => {
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.name;
+            sel.appendChild(opt);
+        });
+        if (prev) sel.value = prev;
+
+        if (sel.value) renderClientPRChart(parseInt(sel.value));
+
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+function renderClientWeightChart(metrics) {
+    const withWeight = (metrics || []).filter((m) => m.weight_kg != null);
+    const canvas = $('#chart-client-weight');
+    const empty  = $('#chart-client-weight-empty');
+    if (_clientChartWeight) { _clientChartWeight.destroy(); _clientChartWeight = null; }
+
+    if (!withWeight.length) {
+        canvas.style.display = 'none';
+        empty.style.display  = '';
+        return;
+    }
+    canvas.style.display = '';
+    empty.style.display  = 'none';
+
+    _clientChartWeight = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: withWeight.map((m) => formatDate(m.measured_at)),
+            datasets: [{
+                label: 'Вес (кг)',
+                data: withWeight.map((m) => m.weight_kg),
+                borderColor: '#6c63ff',
+                backgroundColor: '#6c63ff22',
+                tension: 0.3,
+                fill: true,
+                pointRadius: 4,
+            }],
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { color: '#333' } },
+                y: { ticks: { color: '#888' }, grid: { color: '#333' } },
+            },
+        },
+    });
+}
+
+async function renderClientPRChart(exerciseID) {
+    const canvas = $('#chart-client-pr');
+    const empty  = $('#chart-client-pr-empty');
+    if (_clientChartPR) { _clientChartPR.destroy(); _clientChartPR = null; }
+
+    if (!exerciseID || adminCurrentUserID === null) {
+        canvas.style.display = 'none';
+        empty.style.display  = '';
+        return;
+    }
+    try {
+        const points = await api('GET',
+            '/admin/users/' + adminCurrentUserID + '/exercise-progress?exercise_id=' + exerciseID);
+
+        if (!points || !points.length) {
+            canvas.style.display = 'none';
+            empty.style.display  = '';
+            return;
+        }
+        canvas.style.display = '';
+        empty.style.display  = 'none';
+
+        const exName = $('#client-pr-exercise').selectedOptions[0]?.textContent || 'Упражнение';
+        _clientChartPR = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: points.map((p) => formatDate(p.date)),
+                datasets: [{
+                    label: exName,
+                    data: points.map((p) => p.max_weight),
+                    borderColor: '#2ecc71',
+                    backgroundColor: '#2ecc7122',
+                    tension: 0.3,
+                    fill: true,
+                    pointRadius: 4,
+                }],
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#888', maxTicksLimit: 8 }, grid: { color: '#333' } },
+                    y: { ticks: { color: '#888', callback: (v) => v + ' кг' }, grid: { color: '#333' } },
+                },
+            },
+        });
+    } catch (err) { toast(err.message, 'error'); }
+}
+
+$('#client-pr-exercise').addEventListener('change', (e) => {
+    const id = e.target.value ? parseInt(e.target.value) : null;
+    renderClientPRChart(id);
+});
 
 // Comment modal
 function openCommentModal(idx) {

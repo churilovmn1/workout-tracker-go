@@ -1,0 +1,1216 @@
+basePath: /api
+definitions:
+  handler.commentRequest:
+    properties:
+      comment:
+        type: string
+    type: object
+  handler.errorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  handler.exerciseRequest:
+    properties:
+      description:
+        type: string
+      muscle_group:
+        type: string
+      name:
+        type: string
+    type: object
+  handler.loginRequest:
+    properties:
+      login:
+        type: string
+      password:
+        type: string
+    type: object
+  handler.metricRequest:
+    properties:
+      bicep_cm:
+        type: number
+      body_fat_percent:
+        type: number
+      chest_cm:
+        type: number
+      hips_cm:
+        type: number
+      measured_at:
+        description: '"2006-01-02"'
+        type: string
+      waist_cm:
+        type: number
+      weight_kg:
+        type: number
+    type: object
+  handler.registerRequest:
+    properties:
+      email:
+        type: string
+      login:
+        type: string
+      password:
+        type: string
+    type: object
+  handler.scheduleCreateRequest:
+    properties:
+      client_id:
+        type: integer
+      duration_minutes:
+        type: integer
+      notes:
+        type: string
+      scheduled_at:
+        description: '"2026-01-05T10:00"'
+        type: string
+      title:
+        type: string
+    type: object
+  handler.scheduleUpdateRequest:
+    properties:
+      client_id:
+        type: integer
+      duration_minutes:
+        type: integer
+      notes:
+        type: string
+      scheduled_at:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+    type: object
+  handler.templateExerciseRequest:
+    properties:
+      exercise_id:
+        type: integer
+      reps:
+        type: integer
+      sets:
+        type: integer
+      weight_kg:
+        type: number
+    type: object
+  handler.templateRequest:
+    properties:
+      exercises:
+        items:
+          $ref: '#/definitions/handler.templateExerciseRequest'
+        type: array
+      is_public:
+        type: boolean
+      name:
+        type: string
+    type: object
+  handler.tokenResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  handler.volumeResponse:
+    properties:
+      weekly_volume:
+        type: number
+    type: object
+  handler.workoutExerciseRequest:
+    properties:
+      exercise_id:
+        type: integer
+      reps:
+        type: integer
+      sets:
+        type: integer
+      weight_kg:
+        type: number
+    type: object
+  handler.workoutRequest:
+    properties:
+      date:
+        type: string
+      duration_minutes:
+        type: integer
+      exercises:
+        items:
+          $ref: '#/definitions/handler.workoutExerciseRequest'
+        type: array
+      notes:
+        type: string
+      title:
+        type: string
+    type: object
+  models.BodyMetric:
+    properties:
+      bicep_cm:
+        type: number
+      body_fat_percent:
+        type: number
+      chest_cm:
+        type: number
+      created_at:
+        type: string
+      hips_cm:
+        type: number
+      id:
+        type: integer
+      measured_at:
+        type: string
+      user_id:
+        type: integer
+      waist_cm:
+        type: number
+      weight_kg:
+        type: number
+    type: object
+  models.Exercise:
+    properties:
+      description:
+        type: string
+      id:
+        type: integer
+      muscle_group:
+        type: string
+      name:
+        type: string
+    type: object
+  models.ExerciseProgress:
+    properties:
+      date:
+        type: string
+      max_weight:
+        type: number
+    type: object
+  models.Role:
+    enum:
+    - user
+    - admin
+    type: string
+    x-enum-varnames:
+    - RoleUser
+    - RoleAdmin
+  models.ScheduleEntry:
+    properties:
+      client_id:
+        type: integer
+      client_login:
+        description: populated via JOIN
+        type: string
+      created_at:
+        type: string
+      duration_minutes:
+        type: integer
+      id:
+        type: integer
+      notes:
+        type: string
+      scheduled_at:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      trainer_id:
+        type: integer
+    type: object
+  models.TemplateExercise:
+    properties:
+      exercise_id:
+        type: integer
+      id:
+        type: integer
+      reps:
+        type: integer
+      sets:
+        type: integer
+      template_id:
+        type: integer
+      weight_kg:
+        type: number
+    type: object
+  models.User:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: integer
+      login:
+        type: string
+      role:
+        $ref: '#/definitions/models.Role'
+      telegram_chat_id:
+        type: integer
+      telegram_id:
+        type: integer
+    type: object
+  models.Workout:
+    properties:
+      created_at:
+        type: string
+      date:
+        type: string
+      duration_minutes:
+        type: integer
+      exercises:
+        items:
+          $ref: '#/definitions/models.WorkoutExercise'
+        type: array
+      id:
+        type: integer
+      notes:
+        type: string
+      title:
+        type: string
+      trainer_comment:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.WorkoutExercise:
+    properties:
+      exercise_id:
+        type: integer
+      id:
+        type: integer
+      reps:
+        type: integer
+      sets:
+        type: integer
+      weight_kg:
+        type: number
+      workout_id:
+        type: integer
+    type: object
+  models.WorkoutTemplate:
+    properties:
+      exercises:
+        items:
+          $ref: '#/definitions/models.TemplateExercise'
+        type: array
+      id:
+        type: integer
+      is_public:
+        type: boolean
+      name:
+        type: string
+      user_id:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: REST API for tracking workouts, exercises, body metrics and trainer
+    schedule.
+  title: Workout Tracker API
+  version: "1.0"
+paths:
+  /admin/schedule:
+    get:
+      parameters:
+      - description: Week start date (YYYY-MM-DD). Defaults to current week.
+        in: query
+        name: week
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ScheduleEntry'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List trainer schedule
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schedule data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.scheduleCreateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.ScheduleEntry'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create schedule entry
+      tags:
+      - admin
+  /admin/schedule/{id}:
+    delete:
+      parameters:
+      - description: Schedule entry ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete schedule entry
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schedule entry ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated fields
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.scheduleUpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ScheduleEntry'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update schedule entry
+      tags:
+      - admin
+  /admin/users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.User'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all users
+      tags:
+      - admin
+  /admin/users/{id}/exercise-progress:
+    get:
+      parameters:
+      - description: Client user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Exercise ID
+        in: query
+        name: exercise_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ExerciseProgress'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Client exercise progress
+      tags:
+      - admin
+  /admin/users/{id}/metrics:
+    get:
+      parameters:
+      - description: Client user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.BodyMetric'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Client body metrics
+      tags:
+      - admin
+  /admin/users/{id}/workouts:
+    get:
+      parameters:
+      - description: Client user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Workout'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List client workouts
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Client user ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Workout data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.workoutRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Workout'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create workout for client
+      tags:
+      - admin
+  /admin/workouts/{id}/comment:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Comment
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.commentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: boolean
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set trainer comment
+      tags:
+      - admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate and receive a JWT token
+      parameters:
+      - description: Credentials
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Login
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: Registration data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      summary: Register
+      tags:
+      - auth
+  /exercises:
+    get:
+      description: Returns exercises, optionally filtered by muscle group or name/description
+        search
+      parameters:
+      - description: Filter by muscle group
+        in: query
+        name: muscle_group
+        type: string
+      - description: Search in name and description
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Exercise'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List exercises
+      tags:
+      - exercises
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Exercise data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.exerciseRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Exercise'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create exercise
+      tags:
+      - exercises
+  /exercises/{id}:
+    delete:
+      parameters:
+      - description: Exercise ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete exercise
+      tags:
+      - exercises
+    get:
+      parameters:
+      - description: Exercise ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Exercise'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get exercise
+      tags:
+      - exercises
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Exercise ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Exercise data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.exerciseRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Exercise'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update exercise
+      tags:
+      - exercises
+  /metrics:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.BodyMetric'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List body metrics
+      tags:
+      - metrics
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Metric data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.metricRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.BodyMetric'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add body metric
+      tags:
+      - metrics
+  /metrics/{id}:
+    delete:
+      parameters:
+      - description: Metric ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete body metric
+      tags:
+      - metrics
+  /stats/exercise-progress:
+    get:
+      parameters:
+      - description: Exercise ID
+        in: query
+        name: exercise_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.ExerciseProgress'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Exercise progress history
+      tags:
+      - stats
+  /stats/pr:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WorkoutExercise'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Personal records
+      tags:
+      - stats
+  /stats/volume:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.volumeResponse'
+      security:
+      - BearerAuth: []
+      summary: Weekly volume
+      tags:
+      - stats
+  /templates:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WorkoutTemplate'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List templates
+      tags:
+      - templates
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Template data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.templateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.WorkoutTemplate'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create template
+      tags:
+      - templates
+  /templates/{id}:
+    delete:
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+      security:
+      - BearerAuth: []
+      summary: Delete template
+      tags:
+      - templates
+    get:
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WorkoutTemplate'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get template
+      tags:
+      - templates
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Template data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.templateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WorkoutTemplate'
+      security:
+      - BearerAuth: []
+      summary: Update template
+      tags:
+      - templates
+  /templates/{id}/start:
+    post:
+      parameters:
+      - description: Template ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Workout'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Start workout from template
+      tags:
+      - templates
+  /workouts:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Workout'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List workouts
+      tags:
+      - workouts
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Workout data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.workoutRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Workout'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create workout
+      tags:
+      - workouts
+  /workouts/{id}:
+    delete:
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete workout
+      tags:
+      - workouts
+    get:
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Workout'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get workout
+      tags:
+      - workouts
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Workout ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Workout data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.workoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Workout'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update workout
+      tags:
+      - workouts
+  /workouts/{id}/copy:
+    post:
+      parameters:
+      - description: Source workout ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/handler.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Copy workout
+      tags:
+      - workouts
+securityDefinitions:
+  BearerAuth:
+    description: 'JWT token. Format: "Bearer <token>"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

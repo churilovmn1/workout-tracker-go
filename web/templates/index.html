@@ -257,7 +257,39 @@
                         <h2 id="admin-user-title">Тренировки</h2>
                         <button class="btn btn-sm btn-outline" onclick="showAdminUsers()">← Назад</button>
                     </div>
+                    <!-- Client sub-tabs: workouts / progress -->
+                    <div class="subtabs" style="margin-bottom:16px">
+                        <button class="subtab active" id="client-tab-workouts"
+                            onclick="switchClientTab('workouts')">Тренировки</button>
+                        <button class="subtab" id="client-tab-progress"
+                            onclick="switchClientTab('progress')">Прогресс</button>
+                    </div>
+                    <!-- Workouts list -->
                     <div id="admin-workouts-list"></div>
+                    <!-- Progress charts -->
+                    <div id="admin-progress-view" style="display:none">
+                        <div class="charts-row">
+                            <div class="card chart-card">
+                                <h3 style="margin-bottom:14px">Вес тела клиента</h3>
+                                <canvas id="chart-client-weight" height="200"></canvas>
+                                <p id="chart-client-weight-empty" class="chart-empty" style="display:none">
+                                    Нет данных о метриках
+                                </p>
+                            </div>
+                            <div class="card chart-card">
+                                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+                                    <h3 style="margin:0">Прогресс рекорда</h3>
+                                    <select id="client-pr-exercise" style="flex:1;min-width:140px">
+                                        <option value="">— выберите упражнение —</option>
+                                    </select>
+                                </div>
+                                <canvas id="chart-client-pr" height="200"></canvas>
+                                <p id="chart-client-pr-empty" class="chart-empty" style="display:none">
+                                    Нет данных для выбранного упражнения
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

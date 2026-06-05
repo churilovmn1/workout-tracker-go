@@ -43,6 +43,14 @@ type volumeResponse struct {
 }
 
 // List returns all workouts for the authenticated user.
+//
+// @Summary      List workouts
+// @Tags         workouts
+// @Produce      json
+// @Success      200  {array}   models.Workout
+// @Failure      500  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts [get]
 func (h *WorkoutHandler) List(w http.ResponseWriter, r *http.Request) {
 	workouts, err := h.workoutService.ListByUser(r.Context(), getUserID(r))
 	if err != nil {
@@ -54,6 +62,16 @@ func (h *WorkoutHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID returns a workout by ID.
+//
+// @Summary      Get workout
+// @Tags         workouts
+// @Produce      json
+// @Param        id   path      int  true  "Workout ID"
+// @Success      200  {object}  models.Workout
+// @Failure      403  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts/{id} [get]
 func (h *WorkoutHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -75,6 +93,16 @@ func (h *WorkoutHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create adds a new workout.
+//
+// @Summary      Create workout
+// @Tags         workouts
+// @Accept       json
+// @Produce      json
+// @Param        body  body      workoutRequest  true  "Workout data"
+// @Success      201   {object}  models.Workout
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts [post]
 func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req workoutRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -127,6 +155,18 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update modifies an existing workout.
+//
+// @Summary      Update workout
+// @Tags         workouts
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int             true  "Workout ID"
+// @Param        body  body      workoutRequest  true  "Workout data"
+// @Success      200   {object}  models.Workout
+// @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts/{id} [put]
 func (h *WorkoutHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -176,6 +216,14 @@ func (h *WorkoutHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete removes a workout.
+//
+// @Summary      Delete workout
+// @Tags         workouts
+// @Param        id   path  int  true  "Workout ID"
+// @Success      204
+// @Failure      400  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts/{id} [delete]
 func (h *WorkoutHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -192,6 +240,15 @@ func (h *WorkoutHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Copy creates a new workout based on an existing one.
+//
+// @Summary      Copy workout
+// @Tags         workouts
+// @Produce      json
+// @Param        id   path      int  true  "Source workout ID"
+// @Success      201  {object}  map[string]int
+// @Failure      403  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /workouts/{id}/copy [post]
 func (h *WorkoutHandler) Copy(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -213,6 +270,13 @@ func (h *WorkoutHandler) Copy(w http.ResponseWriter, r *http.Request) {
 }
 
 // PersonalRecords returns best weights per exercise.
+//
+// @Summary      Personal records
+// @Tags         stats
+// @Produce      json
+// @Success      200  {array}   models.WorkoutExercise
+// @Security     BearerAuth
+// @Router       /stats/pr [get]
 func (h *WorkoutHandler) PersonalRecords(w http.ResponseWriter, r *http.Request) {
 	records, err := h.workoutService.GetPersonalRecords(r.Context(), getUserID(r))
 	if err != nil {
@@ -224,7 +288,15 @@ func (h *WorkoutHandler) PersonalRecords(w http.ResponseWriter, r *http.Request)
 }
 
 // ExerciseProgress returns max weight per training day for a given exercise.
-// Query param: exercise_id (required).
+//
+// @Summary      Exercise progress history
+// @Tags         stats
+// @Produce      json
+// @Param        exercise_id  query     int  true  "Exercise ID"
+// @Success      200          {array}   models.ExerciseProgress
+// @Failure      400          {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /stats/exercise-progress [get]
 func (h *WorkoutHandler) ExerciseProgress(w http.ResponseWriter, r *http.Request) {
 	exerciseID, err := strconv.Atoi(r.URL.Query().Get("exercise_id"))
 	if err != nil || exerciseID <= 0 {
@@ -242,6 +314,13 @@ func (h *WorkoutHandler) ExerciseProgress(w http.ResponseWriter, r *http.Request
 }
 
 // WeeklyVolume returns total volume for the last 7 days.
+//
+// @Summary      Weekly volume
+// @Tags         stats
+// @Produce      json
+// @Success      200  {object}  volumeResponse
+// @Security     BearerAuth
+// @Router       /stats/volume [get]
 func (h *WorkoutHandler) WeeklyVolume(w http.ResponseWriter, r *http.Request) {
 	volume, err := h.workoutService.GetWeeklyVolume(r.Context(), getUserID(r))
 	if err != nil {

@@ -72,6 +72,10 @@ func (m *mockWorkoutRepo) GetWeeklyVolume(_ context.Context, userID int) (float6
 	return 0, nil
 }
 
+func (m *mockWorkoutRepo) GetExerciseProgress(_ context.Context, userID, exerciseID int) ([]models.ExerciseProgress, error) {
+	return nil, nil
+}
+
 func newTestWorkoutService() (*WorkoutService, *mockWorkoutRepo) {
 	repo := newMockWorkoutRepo()
 	return NewWorkoutService(repo), repo

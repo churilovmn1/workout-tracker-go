@@ -1,3 +1,12 @@
+// @title           Workout Tracker API
+// @version         1.0
+// @description     REST API for tracking workouts, exercises, body metrics and trainer schedule.
+// @host            localhost:8080
+// @BasePath        /api
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     JWT token. Format: "Bearer <token>"
 package main
 
 import (
@@ -11,6 +20,7 @@ import (
 
 	"github.com/churilovmn1/workout-tracker/bot"
 	"github.com/churilovmn1/workout-tracker/config"
+	_ "github.com/churilovmn1/workout-tracker/docs"
 	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/handler"
 	"github.com/churilovmn1/workout-tracker/internal/repository"

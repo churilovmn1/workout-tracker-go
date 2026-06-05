@@ -35,6 +35,13 @@ type templateRequest struct {
 }
 
 // List returns templates available to the authenticated user.
+//
+// @Summary      List templates
+// @Tags         templates
+// @Produce      json
+// @Success      200  {array}   models.WorkoutTemplate
+// @Security     BearerAuth
+// @Router       /templates [get]
 func (h *TemplateHandler) List(w http.ResponseWriter, r *http.Request) {
 	templates, err := h.templateService.ListByUser(r.Context(), getUserID(r))
 	if err != nil {
@@ -46,6 +53,16 @@ func (h *TemplateHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID returns a template by ID if the user has access.
+//
+// @Summary      Get template
+// @Tags         templates
+// @Produce      json
+// @Param        id   path      int  true  "Template ID"
+// @Success      200  {object}  models.WorkoutTemplate
+// @Failure      403  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /templates/{id} [get]
 func (h *TemplateHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -67,6 +84,16 @@ func (h *TemplateHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create adds a new template.
+//
+// @Summary      Create template
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Param        body  body      templateRequest        true  "Template data"
+// @Success      201   {object}  models.WorkoutTemplate
+// @Failure      400   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /templates [post]
 func (h *TemplateHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req templateRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -105,6 +132,16 @@ func (h *TemplateHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update modifies a template.
+//
+// @Summary      Update template
+// @Tags         templates
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int             true  "Template ID"
+// @Param        body  body      templateRequest true  "Template data"
+// @Success      200   {object}  models.WorkoutTemplate
+// @Security     BearerAuth
+// @Router       /templates/{id} [put]
 func (h *TemplateHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -143,6 +180,13 @@ func (h *TemplateHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete removes a template.
+//
+// @Summary      Delete template
+// @Tags         templates
+// @Param        id   path  int  true  "Template ID"
+// @Success      204
+// @Security     BearerAuth
+// @Router       /templates/{id} [delete]
 func (h *TemplateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -159,6 +203,16 @@ func (h *TemplateHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // Start creates a workout for the authenticated user based on a template.
+//
+// @Summary      Start workout from template
+// @Tags         templates
+// @Produce      json
+// @Param        id   path      int  true  "Template ID"
+// @Success      201  {object}  models.Workout
+// @Failure      403  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /templates/{id}/start [post]
 func (h *TemplateHandler) Start(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {

@@ -1,139 +1,360 @@
-# Workout Tracker
+<div align="center">
 
-Сервис для отслеживания тренировок. Пользователи логируют тренировки, отслеживают упражнения, видят личные рекорды и прогресс. Тренеры ведут расписание клиентов и оставляют комментарии к тренировкам. Доступ через веб-интерфейс, REST API и Telegram-бота.
+# 🏋️ Workout Tracker
 
-## Стек
+**Полнофункциональный трекер тренировок с панелью тренера, Telegram-ботом и аналитикой прогресса**
 
-- **Бэкенд:** Go (chi router, pgx/v5)
-- **База данных:** PostgreSQL
-- **Брокер сообщений:** Redis (очередь уведомлений)
-- **Авторизация:** JWT (HS256), пароли — bcrypt
-- **Фронтенд:** HTML/JS (SPA)
-- **Бот:** Telegram (long-polling)
+[![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
+[![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
+[![Swagger](https://img.shields.io/badge/Swagger-UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](http://localhost:8080/swagger/)
 
-## Архитектура
+</div>
 
-Запрос проходит сверху вниз по трём слоям. Каждый слой зависит только от
-интерфейса нижележащего — зависимости собираются в `cmd/main.go`, без глобального
-состояния и DI-фреймворка.
+---
+
+## 📸 Скриншоты
+
+<div align="center">
+
+| 📚 Каталог упражнений | 📊 Статистика прогресса |
+|:---:|:---:|
+| ![Каталог](photo/catalog.png) | ![Статистика](photo/statictic.png) |
+
+| 🗓️ Журнал тренировок | 💪 Детали тренировки |
+|:---:|:---:|
+| ![Тренировки](photo/training.png) | ![Детали](photo/user_training.png) |
+
+</div>
+
+---
+
+## 🛠️ Технологии
+
+<div align="center">
+
+| Категория | Стек |
+|-----------|------|
+| 🔧 **Backend** | Go 1.25 · [chi v5](https://github.com/go-chi/chi) · [pgx/v5](https://github.com/jackc/pgx) |
+| 🗄️ **База данных** | PostgreSQL 16 |
+| ⚡ **Очередь событий** | Redis 7 (LPUSH / BRPOP) |
+| 🔐 **Аутентификация** | JWT HS256 · bcrypt |
+| 🎨 **Фронтенд** | Vanilla JS · [Chart.js](https://chartjs.org) (SPA) |
+| 🤖 **Уведомления** | Telegram Bot API (long-polling) |
+| 📖 **Документация** | Swagger UI ([swaggo](https://github.com/swaggo/swag)) |
+| 🐳 **Контейнеризация** | Docker · Docker Compose |
+| 🔄 **Миграции** | [golang-migrate](https://github.com/golang-migrate/migrate) |
+
+</div>
+
+---
+
+## 🏗️ Архитектура
+
+### HTTP-стек
 
 ```
-HTTP / Telegram
-      │
-      ▼
-  handler/      — разбор запроса, JWT-аутентификация, коды ответов
-      │           (AuthMiddleware → user_id+role в контекст; AdminOnly; rate limit)
-      ▼
-  service/      — бизнес-логика, проверки прав владельца, JWT, хеширование
-      │           (каждый сервис объявляет свой узкий интерфейс репозитория)
-      ▼
-  repository/   — SQL через пул pgx; одна сущность на файл
-      │
-      ▼
-  PostgreSQL
+  Клиент (Browser / REST / Telegram Bot)
+               │
+               ▼
+  ┌─────────────────────────────────┐
+  │          chi Router             │
+  │  rate limiter · logger · pprof  │
+  └──────────────┬──────────────────┘
+                 │
+                 │  AuthMiddleware
+                 │  JWT → user_id + role → context
+                 ▼
+  ┌─────────────────────────────────┐
+  │            Handler              │
+  │  auth · exercise · workout      │
+  │  template · metrics · admin     │
+  └──────────────┬──────────────────┘
+                 │
+                 ▼
+  ┌─────────────────────────────────┐
+  │            Service              │
+  │  бизнес-логика; узкие           │
+  │  интерфейсы репозитория         │
+  └──────────────┬──────────────────┘
+                 │
+                 ▼
+  ┌─────────────────────────────────┐
+  │          Repository             │
+  │  pgx/v5 pool · транзакция       │
+  │  при создании тренировки        │
+  └──────────────┬──────────────────┘
+                 │
+                 ▼
+            PostgreSQL
 ```
 
-Асинхронные уведомления идут в обход HTTP: handler/service публикуют события в
-Redis-очередь (`internal/broker`), а воркер в отдельной горутине читает очередь и
-шлёт сообщения в Telegram (комментарий тренера, напоминание за час до тренировки).
+### Асинхронные уведомления (broker)
 
 ```
-cmd/main.go        — сборка зависимостей, запуск HTTP-сервера, бота и воркера
-config/            — чтение переменных окружения
-internal/
-  models/          — структуры данных
-  repository/      — слой доступа к БД (pgx/v5)
-  service/         — бизнес-логика
-  handler/         — chi-роутер, middleware, HTTP-хэндлеры
-  broker/          — Redis-очередь: Publisher, Subscriber, Worker, события
-bot/               — Telegram-бот
-migrations/        — SQL-миграции (golang-migrate)
-web/               — HTML-шаблон + статика (SPA)
+  Handler / AdminHandler
+         │
+         │  publisher.Publish(event)
+         ▼
+  ┌─────────────────┐     Redis List
+  │  broker.Redis   │ ──► workout:events  (LPUSH)
+  └─────────────────┘
+                               │
+                               │  BRPOP (блокирующее чтение)
+                               ▼
+                       ┌───────────────┐
+                       │    Worker     │  горутина в main.go
+                       └───────┬───────┘
+                               │
+                               ▼
+                        Telegram Bot ──► клиент
 ```
 
-## Сложность алгоритмов
+> 💡 Если `REDIS_URL` не задан — инжектируется `NoopPublisher`, обработчики не требуют nil-проверки.
 
-Оценки для основных операций (`n` — число строк, по которым идёт выборка/обход):
+---
 
-| Операция                          | Сложность | Примечание |
-|-----------------------------------|-----------|------------|
-| `GetByID` (user/exercise/workout) | O(1)      | поиск по PRIMARY KEY / индексу |
-| `GetByTelegramID`                 | O(1)      | по индексу `idx_users_telegram_id` |
-| `ListByUser` (тренировки)         | O(n)      | по индексу `idx_workouts_user_id`, сортировка по date |
-| `List` упражнений (фильтр)        | O(n)      | последовательное сканирование с фильтром по группе/тексту |
-| `GetPersonalRecords`              | O(n)      | `DISTINCT ON` по exercise_id после индексной выборки |
-| `GetWeeklyVolume`                 | O(n)      | агрегатная сумма по тренировкам за 7 дней |
-| Rate limiter (на запрос)          | O(1)      | амортизированно, `sync.Map` по IP |
-| Брокер: публикация/чтение события | O(1)      | Redis `LPUSH` / `BRPOP` |
-| Брокер: скан напоминаний (раз/мин)| O(k)      | `k` — число сессий в окне «через час» |
-| `calcStreak` (бот)                | O(n)      | один проход по списку тренировок |
+## ✨ Возможности
 
-## Как запустить
+### 👤 Для пользователя
 
-### Полный стек через Docker Compose
+| # | Функция | Описание |
+|---|---------|----------|
+| 1 | 📋 **Журнал тренировок** | Создание, редактирование, удаление сессий с упражнениями (подходы × повторения × вес) |
+| 2 | 🔁 **Копирование тренировок** | Мгновенное повторение прошлой сессии одним кликом |
+| 3 | 📁 **Шаблоны** | Сохранение программ, мгновенный старт из шаблона |
+| 4 | 🏆 **Личные рекорды (PR)** | Автоматическая фиксация максимального веса по каждому упражнению |
+| 5 | 📊 **Аналитика** | Недельный объём по мышечным группам + прогресс веса на Chart.js |
+| 6 | 📏 **Метрики тела** | Вес, % жира, замеры (грудь, талия, бёдра, бицеп) с историей |
+| 7 | 🤖 **Telegram-бот** | Ведение тренировок без браузера; регистрация через `/start` |
+| 8 | 🔐 **JWT-аутентификация** | Защищённые сессии с истечением срока действия |
+
+### 🎓 Для тренера (роль `admin`)
+
+| # | Функция | Описание |
+|---|---------|----------|
+| 1 | 👥 **Клиентская база** | Просмотр всех пользователей и их тренировок |
+| 2 | ✍️ **Тренировки за клиента** | Создание программы от имени клиента |
+| 3 | 💬 **Комментарии тренера** | Обратная связь к тренировке + Telegram-уведомление клиенту |
+| 4 | 📅 **Расписание** | Планирование сессий (`planned` / `completed` / `cancelled`) |
+| 5 | 🔔 **Напоминания** | Автоматическое уведомление за 1 час до тренировки |
+| 6 | 📈 **Прогресс клиента** | Метрики тела и прогресс по упражнениям любого клиента |
+| 7 | 🔍 **Профилировщик** | `/debug/pprof/` — защищён JWT + AdminOnly |
+
+---
+
+## 🗄️ Схема базы данных
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  users                                                        │
+│  id · login · email · password_hash · role                   │
+│  telegram_id · telegram_chat_id · created_at                 │
+└───────┬──────────────────────────────────────────────────────┘
+        │ 1                              1
+        │◄─────────────────────────────────────────────────────┐
+        │                                                       │
+        │ n                                                     │ n
+┌───────▼──────────────┐    ┌──────────────────────────────────▼──┐
+│  workouts            │    │  schedule                            │
+│  id · user_id(FK)    │    │  id · trainer_id(FK) · client_id(FK)│
+│  title · date        │    │  title · scheduled_at · status       │
+│  duration_minutes    │    │  duration_minutes · notes            │
+│  notes               │    └──────────────────────────────────────┘
+│  trainer_comment     │
+└───────┬──────────────┘    ┌──────────────────────────────────────┐
+        │ 1                 │  workout_templates                   │
+        │ n                 │  id · user_id(FK) · name · is_public │
+┌───────▼──────────────┐    └───────┬──────────────────────────────┘
+│  workout_exercises   │            │ 1
+│  id · workout_id(FK) │            │ n
+│  exercise_id(FK)     │    ┌───────▼──────────────────────────────┐
+│  sets · reps         │    │  template_exercises                  │
+│  weight_kg           │    │  id · template_id(FK) · exercise_id  │
+└──────────────────────┘    │  sets · reps · weight_kg             │
+                            └──────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  exercises                                                    │
+│  id · name · muscle_group · description                      │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│  body_metrics                                                 │
+│  id · user_id(FK) · weight_kg · body_fat_percent             │
+│  chest_cm · waist_cm · hips_cm · bicep_cm                    │
+│  measured_at · created_at                                     │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Быстрый старт
+
+### Требования
+
+- [Docker](https://docs.docker.com/get-docker/) + Docker Compose v2
+- [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate) — для локального запуска без Docker
+
+### 1. Клонировать репозиторий
 
 ```bash
-docker compose up -d              # поднимает db + redis + app
-docker compose run --rm migrate   # применить миграции
+git clone https://github.com/churilovmn1/workout-tracker.git
+cd workout-tracker
 ```
 
-### Локально
+### 2. Настроить окружение
 
 ```bash
-cp .env.example .env              # задать DATABASE_URL, JWT_SECRET, при желании REDIS_URL и TELEGRAM_BOT_TOKEN
-docker compose up -d db redis     # только зависимости
-make migrate-up                   # применить миграции
-make run                          # go run ./cmd/
+cp .env.example .env
 ```
 
-### Команды
+Откройте `.env` и задайте переменные (см. раздел [Переменные окружения](#️-переменные-окружения)).
+
+### 3а. Запуск через Docker Compose _(рекомендуется)_
 
 ```bash
-make build        # сборка в bin/workout-tracker
-make run          # go run ./cmd/
-make test         # go test ./... -v
-make lint         # golangci-lint run ./...
-make migrate-up   # применить все миграции
-make migrate-down # откатить последнюю миграцию
+# Поднимает PostgreSQL + Redis + приложение
+docker compose up -d
 
-# Бенчмарки репозитория (нужен доступ к БД, иначе пропускаются):
-DATABASE_URL=postgres://postgres:postgres@localhost:5433/workout_tracker?sslmode=disable \
-  go test ./internal/repository/... -bench=. -run='^$'
+# Применить миграции
+docker compose run --rm migrate
 ```
 
-## API
+Приложение доступно на **http://localhost:8080** 🎉
 
-| Метод  | Путь                                | Описание                  | Роль  |
-|--------|-------------------------------------|---------------------------|-------|
-| POST   | /api/auth/register                  | Регистрация               | -     |
-| POST   | /api/auth/login                     | Вход                      | -     |
-| GET    | /api/exercises                      | Список упражнений         | user  |
-| POST   | /api/exercises                      | Создать упражнение        | admin |
-| PUT    | /api/exercises/:id                  | Обновить упражнение       | admin |
-| DELETE | /api/exercises/:id                  | Удалить упражнение        | admin |
-| GET    | /api/workouts                       | Список тренировок         | user  |
-| POST   | /api/workouts                       | Создать тренировку        | user  |
-| GET    | /api/workouts/:id                   | Детали тренировки         | user  |
-| PUT    | /api/workouts/:id                   | Обновить тренировку       | user  |
-| DELETE | /api/workouts/:id                   | Удалить тренировку        | user  |
-| POST   | /api/workouts/:id/copy              | Скопировать тренировку    | user  |
-| GET    | /api/stats/pr                       | Личные рекорды            | user  |
-| GET    | /api/stats/volume                   | Объём за неделю           | user  |
-| GET    | /api/templates                      | Список шаблонов           | user  |
-| POST   | /api/templates                      | Создать шаблон            | user  |
-| GET    | /api/admin/users                    | Список клиентов           | admin |
-| GET    | /api/admin/users/:id/workouts       | Тренировки клиента        | admin |
-| PUT    | /api/admin/workouts/:id/comment     | Комментарий тренера       | admin |
-| GET    | /api/admin/schedule                 | Расписание на неделю      | admin |
-| POST   | /api/admin/schedule                 | Добавить запись           | admin |
-| GET    | /debug/pprof/                       | Профилировщик pprof       | admin |
+### 3б. Локальный запуск (только зависимости в Docker)
 
-## Переменные окружения
+```bash
+# Только PostgreSQL + Redis
+docker compose up -d db redis
 
-| Переменная         | Обязательна | Описание                                            | По умолчанию              |
-|--------------------|-------------|-----------------------------------------------------|---------------------------|
-| DATABASE_URL       | да          | URL подключения к PostgreSQL                        | -                         |
-| JWT_SECRET         | нет         | Секрет для подписи JWT                              | `default-secret-change-me`|
-| PORT               | нет         | Порт HTTP-сервера                                   | `8080`                    |
-| TELEGRAM_BOT_TOKEN | нет         | Токен Telegram-бота (пусто → бот выключен)          | -                         |
-| REDIS_URL          | нет         | URL Redis (пусто → брокер выключен, публикация no-op)| -                         |
+# Применить миграции
+make migrate-up
+
+# Запустить приложение
+make run
+```
+
+### 4. Открыть в браузере
+
+| URL | Назначение |
+|-----|-----------|
+| `http://localhost:8080` | 🌐 Web-интерфейс |
+| `http://localhost:8080/swagger/` | 📖 Swagger UI |
+| `http://localhost:8080/debug/pprof/` | 🔍 Профилировщик (только admin) |
+
+---
+
+## 📡 API Эндпоинты
+
+Все `/api` маршруты (кроме `/auth/*`) требуют заголовка:
+```
+Authorization: Bearer <jwt-token>
+```
+
+### 🔑 Аутентификация
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `POST` | `/api/auth/register` | Регистрация нового пользователя |
+| `POST` | `/api/auth/login` | Вход, получение JWT-токена |
+
+### 💪 Упражнения
+
+| Метод | Путь | Доступ | Описание |
+|-------|------|:------:|----------|
+| `GET` | `/api/exercises` | 👤 | Список упражнений (фильтр по мышечной группе) |
+| `GET` | `/api/exercises/{id}` | 👤 | Упражнение по ID |
+| `POST` | `/api/exercises` | 🎓 | Создать упражнение |
+| `PUT` | `/api/exercises/{id}` | 🎓 | Обновить упражнение |
+| `DELETE` | `/api/exercises/{id}` | 🎓 | Удалить упражнение |
+
+### 🏋️ Тренировки
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/workouts` | Список тренировок текущего пользователя |
+| `POST` | `/api/workouts` | Создать тренировку (с упражнениями) |
+| `GET` | `/api/workouts/{id}` | Детали тренировки |
+| `PUT` | `/api/workouts/{id}` | Обновить тренировку |
+| `DELETE` | `/api/workouts/{id}` | Удалить тренировку |
+| `POST` | `/api/workouts/{id}/copy` | Скопировать тренировку |
+
+### 📁 Шаблоны
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/templates` | Список шаблонов |
+| `POST` | `/api/templates` | Создать шаблон |
+| `GET` | `/api/templates/{id}` | Детали шаблона |
+| `PUT` | `/api/templates/{id}` | Обновить шаблон |
+| `DELETE` | `/api/templates/{id}` | Удалить шаблон |
+| `POST` | `/api/templates/{id}/start` | Начать тренировку из шаблона |
+
+### 📊 Статистика
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/stats/pr` | Личные рекорды по упражнениям |
+| `GET` | `/api/stats/volume` | Недельный объём по мышечным группам |
+| `GET` | `/api/stats/exercise-progress` | Прогресс веса по упражнению |
+
+### 📏 Метрики тела
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/metrics` | История замеров тела |
+| `POST` | `/api/metrics` | Добавить замер |
+| `DELETE` | `/api/metrics/{id}` | Удалить замер |
+
+### 🎓 Панель тренера
+
+> Все маршруты `/api/admin/*` доступны только роли `admin`.
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| `GET` | `/api/admin/users` | Список всех пользователей |
+| `GET` | `/api/admin/users/{id}/workouts` | Тренировки клиента |
+| `POST` | `/api/admin/users/{id}/workouts` | Создать тренировку за клиента |
+| `GET` | `/api/admin/users/{id}/metrics` | Метрики тела клиента |
+| `GET` | `/api/admin/users/{id}/exercise-progress` | Прогресс клиента по упражнению |
+| `PUT` | `/api/admin/workouts/{id}/comment` | Оставить комментарий тренера |
+| `GET` | `/api/admin/schedule` | Расписание тренера на неделю |
+| `POST` | `/api/admin/schedule` | Добавить сессию в расписание |
+| `PUT` | `/api/admin/schedule/{id}` | Обновить статус / данные сессии |
+| `DELETE` | `/api/admin/schedule/{id}` | Удалить сессию |
+
+---
+
+## ⚙️ Переменные окружения
+
+| Переменная | Обязательна | По умолчанию | Описание |
+|-----------|:-----------:|--------------|----------|
+| `DATABASE_URL` | ✅ | — | DSN подключения к PostgreSQL |
+| `JWT_SECRET` | ❌ | `default-secret-change-me` | Секрет для подписи JWT-токенов |
+| `PORT` | ❌ | `8080` | Порт HTTP-сервера |
+| `TELEGRAM_BOT_TOKEN` | ❌ | — | Токен бота; если не задан — бот отключён |
+| `REDIS_URL` | ❌ | — | `redis://host:port/db`; если не задан — уведомления отключены |
+| `TEST_DATABASE_URL` | ❌ | `DATABASE_URL` | DSN для repository-бенчмарков |
+
+---
+
+## 🤖 Команды Telegram-бота
+
+Бот активируется автоматически при наличии `TELEGRAM_BOT_TOKEN`.
+
+| Команда | Действие |
+|---------|----------|
+| `/start` | Регистрация и привязка аккаунта |
+| `/newworkout` | Пошаговое создание тренировки |
+| `/myworkouts` | Последние тренировки пользователя |
+| `/exercises` | Каталог упражнений |
+
+---
+
+## 📄 Лицензия
+
+Распространяется под лицензией [MIT](LICENSE).

@@ -26,6 +26,17 @@ type exerciseRequest struct {
 }
 
 // List returns exercises filtered by muscle_group and/or search query.
+//
+// @Summary      List exercises
+// @Description  Returns exercises, optionally filtered by muscle group or name/description search
+// @Tags         exercises
+// @Produce      json
+// @Param        muscle_group  query     string  false  "Filter by muscle group"
+// @Param        search        query     string  false  "Search in name and description"
+// @Success      200           {array}   models.Exercise
+// @Failure      500           {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /exercises [get]
 func (h *ExerciseHandler) List(w http.ResponseWriter, r *http.Request) {
 	muscleGroup := r.URL.Query().Get("muscle_group")
 	search := r.URL.Query().Get("search")
@@ -40,6 +51,16 @@ func (h *ExerciseHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID returns an exercise by ID.
+//
+// @Summary      Get exercise
+// @Tags         exercises
+// @Produce      json
+// @Param        id   path      int  true  "Exercise ID"
+// @Success      200  {object}  models.Exercise
+// @Failure      400  {object}  errorResponse
+// @Failure      404  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /exercises/{id} [get]
 func (h *ExerciseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -57,6 +78,17 @@ func (h *ExerciseHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Create adds a new exercise (admin only).
+//
+// @Summary      Create exercise
+// @Tags         exercises
+// @Accept       json
+// @Produce      json
+// @Param        body  body      exerciseRequest  true  "Exercise data"
+// @Success      201   {object}  models.Exercise
+// @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /exercises [post]
 func (h *ExerciseHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req exerciseRequest
 	if err := decodeJSON(r, &req); err != nil {
@@ -86,6 +118,18 @@ func (h *ExerciseHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // Update modifies an exercise (admin only).
+//
+// @Summary      Update exercise
+// @Tags         exercises
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int              true  "Exercise ID"
+// @Param        body  body      exerciseRequest  true  "Exercise data"
+// @Success      200   {object}  models.Exercise
+// @Failure      400   {object}  errorResponse
+// @Failure      403   {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /exercises/{id} [put]
 func (h *ExerciseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
@@ -115,6 +159,15 @@ func (h *ExerciseHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 // Delete removes an exercise (admin only).
+//
+// @Summary      Delete exercise
+// @Tags         exercises
+// @Param        id   path  int  true  "Exercise ID"
+// @Success      204
+// @Failure      400  {object}  errorResponse
+// @Failure      403  {object}  errorResponse
+// @Security     BearerAuth
+// @Router       /exercises/{id} [delete]
 func (h *ExerciseHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
