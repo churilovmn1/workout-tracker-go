@@ -2,7 +2,8 @@ package models
 
 import "time"
 
-// Role represents a user's authorization level.
+// Role определяет уровень доступа пользователя.
+// Два значения: user (обычный) и admin (тренер с расширенными правами).
 type Role string
 
 const (
@@ -10,14 +11,12 @@ const (
 	RoleAdmin Role = "admin"
 )
 
-// User represents a registered user.
+// User представляет зарегистрированного пользователя.
 type User struct {
-	ID             int       `json:"id" db:"id"`
-	Login          string    `json:"login" db:"login"`
-	Email          string    `json:"email" db:"email"`
-	PasswordHash   string    `json:"-" db:"password_hash"`
-	Role           Role      `json:"role" db:"role"`
-	TelegramID     *int64    `json:"telegram_id,omitempty" db:"telegram_id"`
-	TelegramChatID *int64    `json:"telegram_chat_id,omitempty" db:"telegram_chat_id"`
-	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	ID           int       `json:"id"         db:"id"`
+	Login        string    `json:"login"      db:"login"`
+	Email        string    `json:"email"      db:"email"`
+	PasswordHash string    `json:"-"          db:"password_hash"` // не сериализуется в JSON
+	Role         Role      `json:"role"       db:"role"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 }

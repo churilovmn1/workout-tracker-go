@@ -2,11 +2,10 @@
 
 # 🏋️ Workout Tracker
 
-**Полнофункциональный трекер тренировок с панелью тренера, Telegram-ботом и аналитикой прогресса**
+**Трекер тренировок с панелью тренера, аналитикой прогресса и Swagger API**
 
 [![Go](https://img.shields.io/badge/Go-1.25-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
-[![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white)](https://redis.io)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![License](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
 [![Swagger](https://img.shields.io/badge/Swagger-UI-85EA2D?style=for-the-badge&logo=swagger&logoColor=black)](http://localhost:8080/swagger/)
@@ -39,10 +38,8 @@
 |-----------|------|
 | 🔧 **Backend** | Go 1.25 · [chi v5](https://github.com/go-chi/chi) · [pgx/v5](https://github.com/jackc/pgx) |
 | 🗄️ **База данных** | PostgreSQL 16 |
-| ⚡ **Очередь событий** | Redis 7 (LPUSH / BRPOP) |
 | 🔐 **Аутентификация** | JWT HS256 · bcrypt |
 | 🎨 **Фронтенд** | Vanilla JS · [Chart.js](https://chartjs.org) (SPA) |
-| 🤖 **Уведомления** | Telegram Bot API (long-polling) |
 | 📖 **Документация** | Swagger UI ([swaggo](https://github.com/swaggo/swag)) |
 | 🐳 **Контейнеризация** | Docker · Docker Compose |
 | 🔄 **Миграции** | [golang-migrate](https://github.com/golang-migrate/migrate) |
@@ -56,7 +53,7 @@
 ### HTTP-стек
 
 ```
-  Клиент (Browser / REST / Telegram Bot)
+  Клиент (Browser / REST)
                │
                ▼
   ┌─────────────────────────────────┐
@@ -91,28 +88,6 @@
             PostgreSQL
 ```
 
-### Асинхронные уведомления (broker)
-
-```
-  Handler / AdminHandler
-         │
-         │  publisher.Publish(event)
-         ▼
-  ┌─────────────────┐     Redis List
-  │  broker.Redis   │ ──► workout:events  (LPUSH)
-  └─────────────────┘
-                               │
-                               │  BRPOP (блокирующее чтение)
-                               ▼
-                       ┌───────────────┐
-                       │    Worker     │  горутина в main.go
-                       └───────┬───────┘
-                               │
-                               ▼
-                        Telegram Bot ──► клиент
-```
-
-> 💡 Если `REDIS_URL` не задан — инжектируется `NoopPublisher`, обработчики не требуют nil-проверки.
 
 ---
 
@@ -128,8 +103,7 @@
 | 4 | 🏆 **Личные рекорды (PR)** | Автоматическая фиксация максимального веса по каждому упражнению |
 | 5 | 📊 **Аналитика** | Недельный объём по мышечным группам + прогресс веса на Chart.js |
 | 6 | 📏 **Метрики тела** | Вес, % жира, замеры (грудь, талия, бёдра, бицеп) с историей |
-| 7 | 🤖 **Telegram-бот** | Ведение тренировок без браузера; регистрация через `/start` |
-| 8 | 🔐 **JWT-аутентификация** | Защищённые сессии с истечением срока действия |
+| 7 | 🔐 **JWT-аутентификация** | Защищённые сессии с истечением срока действия |
 
 ### 🎓 Для тренера (роль `admin`)
 
@@ -137,11 +111,10 @@
 |---|---------|----------|
 | 1 | 👥 **Клиентская база** | Просмотр всех пользователей и их тренировок |
 | 2 | ✍️ **Тренировки за клиента** | Создание программы от имени клиента |
-| 3 | 💬 **Комментарии тренера** | Обратная связь к тренировке + Telegram-уведомление клиенту |
+| 3 | 💬 **Комментарии тренера** | Обратная связь к тренировке клиента |
 | 4 | 📅 **Расписание** | Планирование сессий (`planned` / `completed` / `cancelled`) |
-| 5 | 🔔 **Напоминания** | Автоматическое уведомление за 1 час до тренировки |
-| 6 | 📈 **Прогресс клиента** | Метрики тела и прогресс по упражнениям любого клиента |
-| 7 | 🔍 **Профилировщик** | `/debug/pprof/` — защищён JWT + AdminOnly |
+| 5 | 📈 **Прогресс клиента** | Метрики тела и прогресс по упражнениям любого клиента |
+| 6 | 🔍 **Профилировщик** | `/debug/pprof/` — защищён JWT + AdminOnly |
 
 ---
 
@@ -216,7 +189,7 @@ cp .env.example .env
 ### 3а. Запуск через Docker Compose _(рекомендуется)_
 
 ```bash
-# Поднимает PostgreSQL + Redis + приложение
+# Поднимает PostgreSQL + приложение
 docker compose up -d
 
 # Применить миграции
@@ -228,8 +201,8 @@ docker compose run --rm migrate
 ### 3б. Локальный запуск (только зависимости в Docker)
 
 ```bash
-# Только PostgreSQL + Redis
-docker compose up -d db redis
+# Только PostgreSQL
+docker compose up -d db
 
 # Применить миграции
 make migrate-up
@@ -336,22 +309,7 @@ Authorization: Bearer <jwt-token>
 | `DATABASE_URL` | ✅ | — | DSN подключения к PostgreSQL |
 | `JWT_SECRET` | ❌ | `default-secret-change-me` | Секрет для подписи JWT-токенов |
 | `PORT` | ❌ | `8080` | Порт HTTP-сервера |
-| `TELEGRAM_BOT_TOKEN` | ❌ | — | Токен бота; если не задан — бот отключён |
-| `REDIS_URL` | ❌ | — | `redis://host:port/db`; если не задан — уведомления отключены |
 | `TEST_DATABASE_URL` | ❌ | `DATABASE_URL` | DSN для repository-бенчмарков |
-
----
-
-## 🤖 Команды Telegram-бота
-
-Бот активируется автоматически при наличии `TELEGRAM_BOT_TOKEN`.
-
-| Команда | Действие |
-|---------|----------|
-| `/start` | Регистрация и привязка аккаунта |
-| `/newworkout` | Пошаговое создание тренировки |
-| `/myworkouts` | Последние тренировки пользователя |
-| `/exercises` | Каталог упражнений |
 
 ---
 

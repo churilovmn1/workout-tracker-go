@@ -1830,12 +1830,6 @@ const docTemplate = `{
                 },
                 "role": {
                     "$ref": "#/definitions/models.Role"
-                },
-                "telegram_chat_id": {
-                    "type": "integer"
-                },
-                "telegram_id": {
-                    "type": "integer"
                 }
             }
         },

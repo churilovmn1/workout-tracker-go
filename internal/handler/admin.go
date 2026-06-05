@@ -6,32 +6,30 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/models"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
 )
 
-// AdminHandler handles trainer/admin endpoints.
+// AdminHandler обрабатывает маршруты панели тренера (/api/admin/*).
+// Все методы доступны только пользователям с ролью admin — это гарантирует
+// AdminOnly middleware, установленный в router.go для всей группы /admin.
 type AdminHandler struct {
 	adminService   *service.AdminService
 	workoutService *service.WorkoutService
 	metricsService *service.MetricsService
-	publisher      broker.Publisher
 }
 
-// NewAdminHandler creates a new AdminHandler.
+// NewAdminHandler создаёт AdminHandler.
 func NewAdminHandler(
 	adminService *service.AdminService,
 	workoutService *service.WorkoutService,
 	metricsService *service.MetricsService,
-	publisher broker.Publisher,
 ) *AdminHandler {
 	return &AdminHandler{
 		adminService:   adminService,
 		workoutService: workoutService,
 		metricsService: metricsService,
-		publisher:      publisher,
 	}
 }
 
@@ -56,7 +54,7 @@ type scheduleUpdateRequest struct {
 	ClientID        int    `json:"client_id"`
 }
 
-// mondayOf returns the Monday of the week containing t (UTC).
+// mondayOf возвращает понедельник недели, содержащей t (UTC).
 func mondayOf(t time.Time) time.Time {
 	t = t.UTC().Truncate(24 * time.Hour)
 	wd := t.Weekday()
@@ -66,9 +64,9 @@ func mondayOf(t time.Time) time.Time {
 	return t.AddDate(0, 0, -int(wd)+1)
 }
 
-// ── Users ──────────────────────────────────────────────────────────────────
+// ── Пользователи ──────────────────────────────────────────────────────────
 
-// ListUsers returns all registered users.
+// ListUsers возвращает список всех зарегистрированных пользователей.
 //
 // @Summary      List all users
 // @Tags         admin
@@ -86,7 +84,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, users)
 }
 
-// ListUserWorkouts returns all workouts for a specific user.
+// ListUserWorkouts возвращает тренировки конкретного клиента.
 //
 // @Summary      List client workouts
 // @Tags         admin
@@ -111,7 +109,7 @@ func (h *AdminHandler) ListUserWorkouts(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, workouts)
 }
 
-// SetComment sets a trainer comment on a workout.
+// SetComment устанавливает комментарий тренера к тренировке.
 //
 // @Summary      Set trainer comment
 // @Tags         admin
@@ -141,15 +139,10 @@ func (h *AdminHandler) SetComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = h.publisher.Publish(r.Context(), broker.NewEvent(broker.EventWorkoutCommented, broker.Payload{
-		WorkoutID: workoutID,
-		Comment:   req.Comment,
-	}))
-
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// CreateWorkoutForUser creates a workout on behalf of a user.
+// CreateWorkoutForUser создаёт тренировку от имени клиента.
 //
 // @Summary      Create workout for client
 // @Tags         admin
@@ -211,9 +204,9 @@ func (h *AdminHandler) CreateWorkoutForUser(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusCreated, workout)
 }
 
-// ── Schedule ───────────────────────────────────────────────────────────────
+// ── Расписание ────────────────────────────────────────────────────────────
 
-// ListSchedule returns schedule entries for the authenticated trainer's week.
+// ListSchedule возвращает расписание тренера на указанную неделю.
 //
 // @Summary      List trainer schedule
 // @Tags         admin
@@ -244,7 +237,7 @@ func (h *AdminHandler) ListSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
-// CreateSchedule adds a new schedule entry.
+// CreateSchedule добавляет запись в расписание.
 //
 // @Summary      Create schedule entry
 // @Tags         admin
@@ -297,7 +290,7 @@ func (h *AdminHandler) CreateSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, entry)
 }
 
-// UpdateSchedule modifies status or fields of a schedule entry.
+// UpdateSchedule изменяет запись расписания.
 //
 // @Summary      Update schedule entry
 // @Tags         admin
@@ -366,7 +359,7 @@ func (h *AdminHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, existing)
 }
 
-// DeleteSchedule removes a schedule entry.
+// DeleteSchedule удаляет запись расписания.
 //
 // @Summary      Delete schedule entry
 // @Tags         admin
@@ -395,9 +388,9 @@ func (h *AdminHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ── Client analytics (trainer view) ───────────────────────────────────────
+// ── Аналитика клиента (вид тренера) ──────────────────────────────────────
 
-// GetClientMetrics returns body metrics for a specific client.
+// GetClientMetrics возвращает метрики тела конкретного клиента.
 //
 // @Summary      Client body metrics
 // @Tags         admin
@@ -421,7 +414,7 @@ func (h *AdminHandler) GetClientMetrics(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, metrics)
 }
 
-// GetClientExerciseProgress returns exercise weight history for a specific client.
+// GetClientExerciseProgress возвращает историю прогресса по упражнению для клиента.
 //
 // @Summary      Client exercise progress
 // @Tags         admin

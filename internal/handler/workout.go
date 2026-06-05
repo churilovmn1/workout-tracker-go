@@ -6,21 +6,19 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/models"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
 )
 
-// WorkoutHandler handles workout endpoints.
+// WorkoutHandler обрабатывает запросы к тренировкам.
 type WorkoutHandler struct {
 	workoutService *service.WorkoutService
-	publisher      broker.Publisher
 }
 
-// NewWorkoutHandler creates a new WorkoutHandler.
-func NewWorkoutHandler(workoutService *service.WorkoutService, publisher broker.Publisher) *WorkoutHandler {
-	return &WorkoutHandler{workoutService: workoutService, publisher: publisher}
+// NewWorkoutHandler создаёт WorkoutHandler.
+func NewWorkoutHandler(workoutService *service.WorkoutService) *WorkoutHandler {
+	return &WorkoutHandler{workoutService: workoutService}
 }
 
 type workoutExerciseRequest struct {
@@ -42,7 +40,7 @@ type volumeResponse struct {
 	WeeklyVolume float64 `json:"weekly_volume"`
 }
 
-// List returns all workouts for the authenticated user.
+// List возвращает все тренировки авторизованного пользователя.
 //
 // @Summary      List workouts
 // @Tags         workouts
@@ -61,7 +59,7 @@ func (h *WorkoutHandler) List(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workouts)
 }
 
-// GetByID returns a workout by ID.
+// GetByID возвращает тренировку по ID.
 //
 // @Summary      Get workout
 // @Tags         workouts
@@ -79,6 +77,8 @@ func (h *WorkoutHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Сервис проверяет, что тренировка принадлежит запрашивающему пользователю.
+	// Если нет — возвращает service.ErrForbidden, который маппируется в 403.
 	workout, err := h.workoutService.GetByID(r.Context(), id, getUserID(r))
 	if err != nil {
 		if errors.Is(err, service.ErrForbidden) {
@@ -92,7 +92,7 @@ func (h *WorkoutHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workout)
 }
 
-// Create adds a new workout.
+// Create создаёт новую тренировку с упражнениями.
 //
 // @Summary      Create workout
 // @Tags         workouts
@@ -137,6 +137,8 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// WorkoutRepository.Create использует транзакцию: сначала вставляет workouts,
+	// затем все workout_exercises — атомарно. При ошибке любого INSERT — rollback.
 	id, err := h.workoutService.Create(r.Context(), workout)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create workout")
@@ -144,17 +146,10 @@ func (h *WorkoutHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workout.ID = id
-
-	_ = h.publisher.Publish(r.Context(), broker.NewEvent(broker.EventWorkoutCreated, broker.Payload{
-		WorkoutID: workout.ID,
-		UserID:    workout.UserID,
-		Title:     workout.Title,
-	}))
-
 	writeJSON(w, http.StatusCreated, workout)
 }
 
-// Update modifies an existing workout.
+// Update изменяет существующую тренировку.
 //
 // @Summary      Update workout
 // @Tags         workouts
@@ -215,7 +210,7 @@ func (h *WorkoutHandler) Update(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workout)
 }
 
-// Delete removes a workout.
+// Delete удаляет тренировку.
 //
 // @Summary      Delete workout
 // @Tags         workouts
@@ -239,7 +234,7 @@ func (h *WorkoutHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Copy creates a new workout based on an existing one.
+// Copy создаёт копию существующей тренировки.
 //
 // @Summary      Copy workout
 // @Tags         workouts
@@ -269,7 +264,7 @@ func (h *WorkoutHandler) Copy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]int{"id": newID})
 }
 
-// PersonalRecords returns best weights per exercise.
+// PersonalRecords возвращает лучший вес по каждому упражнению.
 //
 // @Summary      Personal records
 // @Tags         stats
@@ -287,7 +282,7 @@ func (h *WorkoutHandler) PersonalRecords(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, records)
 }
 
-// ExerciseProgress returns max weight per training day for a given exercise.
+// ExerciseProgress возвращает историю максимального веса по упражнению (для графика).
 //
 // @Summary      Exercise progress history
 // @Tags         stats
@@ -313,7 +308,7 @@ func (h *WorkoutHandler) ExerciseProgress(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, progress)
 }
 
-// WeeklyVolume returns total volume for the last 7 days.
+// WeeklyVolume возвращает суммарный объём за последние 7 дней.
 //
 // @Summary      Weekly volume
 // @Tags         stats

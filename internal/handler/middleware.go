@@ -16,7 +16,14 @@ const (
 	ctxRole   contextKey = "role"
 )
 
-// AuthMiddleware validates JWT tokens and injects user info into context.
+// AuthMiddleware проверяет JWT-токен из заголовка Authorization.
+//
+// Схема работы:
+//  1. Извлекаем токен из "Bearer <token>"
+//  2. Парсим и валидируем подпись через AuthService (HMAC-SHA256)
+//  3. Кладём user_id и role в context — handler достаёт их через getUserID()
+//
+// Если токен невалиден — возвращаем 401 и прерываем цепочку middleware.
 func AuthMiddleware(authService *service.AuthService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +52,8 @@ func AuthMiddleware(authService *service.AuthService) func(http.Handler) http.Ha
 	}
 }
 
-// AdminOnly restricts access to admin users.
+// AdminOnly проверяет роль из context — пропускает только admin.
+// Всегда идёт после AuthMiddleware: к этому моменту role уже в context.
 func AdminOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		role, _ := r.Context().Value(ctxRole).(models.Role)
@@ -57,7 +65,7 @@ func AdminOnly(next http.Handler) http.Handler {
 	})
 }
 
-// getUserID extracts the authenticated user's ID from context.
+// getUserID извлекает ID аутентифицированного пользователя из context.
 func getUserID(r *http.Request) int {
 	id, _ := r.Context().Value(ctxUserID).(int)
 	return id

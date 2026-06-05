@@ -18,10 +18,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/churilovmn1/workout-tracker/bot"
 	"github.com/churilovmn1/workout-tracker/config"
 	_ "github.com/churilovmn1/workout-tracker/docs"
-	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/handler"
 	"github.com/churilovmn1/workout-tracker/internal/repository"
 	"github.com/churilovmn1/workout-tracker/internal/service"
@@ -36,12 +34,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// Единственное место, где создаётся пул соединений с БД.
+	// Все репозитории получают *pgxpool.Pool — он потокобезопасен и переиспользует соединения.
 	pool, err := repository.NewPostgresPool(ctx, cfg.DatabaseURL)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 	defer pool.Close()
 
+	// ── Слой репозиториев ────────────────────────────────────────────────────
+	// Каждый репозиторий оборачивает пул и предоставляет типизированные методы.
+	// Конкретные типы удовлетворяют узким интерфейсам, объявленным в service/.
 	userRepo := repository.NewUserRepository(pool)
 	exerciseRepo := repository.NewExerciseRepository(pool)
 	workoutRepo := repository.NewWorkoutRepository(pool)
@@ -49,6 +52,10 @@ func main() {
 	scheduleRepo := repository.NewScheduleRepository(pool)
 	metricsRepo := repository.NewMetricsRepository(pool)
 
+	// ── Слой сервисов ────────────────────────────────────────────────────────
+	// Зависимости передаются явно через конструкторы — без глобального состояния
+	// и DI-фреймворка. Это упрощает тестирование: в тестах вместо реального
+	// репозитория передаётся мок (см. internal/service/*_test.go).
 	authService := service.NewAuthService(userRepo, cfg.JWTSecret)
 	exerciseService := service.NewExerciseService(exerciseRepo)
 	workoutService := service.NewWorkoutService(workoutRepo)
@@ -56,39 +63,14 @@ func main() {
 	adminService := service.NewAdminService(userRepo, workoutRepo, scheduleRepo)
 	metricsService := service.NewMetricsService(metricsRepo)
 
-	var tgBot *bot.Bot
-	if cfg.BotToken != "" {
-		b, err := bot.New(cfg.BotToken, userRepo, workoutService, exerciseService, templateService)
-		if err != nil {
-			log.Printf("failed to create telegram bot: %v", err)
-		} else {
-			tgBot = b
-			go tgBot.Start(ctx)
-		}
-	}
-
-	// Message broker (optional). When REDIS_URL is set, events are queued in
-	// Redis and a worker delivers Telegram notifications; otherwise publishing
-	// is a no-op.
-	var publisher broker.Publisher = broker.NoopPublisher{}
-	if cfg.RedisURL != "" {
-		rb, err := broker.Connect(ctx, cfg.RedisURL)
-		if err != nil {
-			log.Printf("failed to connect to redis: %v", err)
-		} else {
-			defer rb.Close()
-			publisher = rb
-
-			var notifier broker.Notifier
-			if tgBot != nil {
-				notifier = tgBot
-			}
-			worker := broker.NewWorker(rb, notifier, userRepo, workoutRepo, scheduleRepo)
-			go worker.Run(ctx)
-		}
-	}
-
-	router := handler.NewRouter(authService, exerciseService, workoutService, templateService, adminService, metricsService, publisher, "web")
+	// ── HTTP-роутер ──────────────────────────────────────────────────────────
+	// NewRouter собирает chi-роутер: навешивает middleware (rate limiter, logger,
+	// recoverer) и регистрирует все маршруты с нужными middleware-цепочками.
+	router := handler.NewRouter(
+		authService, exerciseService, workoutService,
+		templateService, adminService, metricsService,
+		"web",
+	)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -105,6 +87,8 @@ func main() {
 		}
 	}()
 
+	// ── Graceful shutdown ────────────────────────────────────────────────────
+	// Ждём SIGINT / SIGTERM, затем даём серверу 5 секунд завершить текущие запросы.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

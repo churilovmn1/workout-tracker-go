@@ -4,14 +4,24 @@ import (
 	"net/http/pprof"
 	"time"
 
-	"github.com/churilovmn1/workout-tracker/internal/broker"
 	"github.com/churilovmn1/workout-tracker/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-// NewRouter sets up all HTTP routes.
+// NewRouter настраивает все HTTP-маршруты приложения.
+//
+// Middleware-цепочка (применяется к каждому запросу):
+//  1. RateLimiter  — ограничивает 100 req/min на IP, защита от брутфорса
+//  2. Logger       — логирует метод, путь и время ответа
+//  3. Recoverer    — перехватывает panic и возвращает 500 вместо краша
+//
+// Далее маршруты делятся по зоне доступа:
+//   - /api/auth/*      — публичные (регистрация и вход)
+//   - /api/*           — требуют валидный JWT (AuthMiddleware)
+//   - /api/admin/*     — дополнительно требуют роль admin (AdminOnly)
+//   - /debug/pprof/*   — только admin (профилировщик Go)
 func NewRouter(
 	authService *service.AuthService,
 	exerciseService *service.ExerciseService,
@@ -19,7 +29,6 @@ func NewRouter(
 	templateService *service.TemplateService,
 	adminService *service.AdminService,
 	metricsService *service.MetricsService,
-	publisher broker.Publisher,
 	webDir string,
 ) chi.Router {
 	r := chi.NewRouter()
@@ -29,21 +38,21 @@ func NewRouter(
 
 	authHandler := NewAuthHandler(authService)
 	exerciseHandler := NewExerciseHandler(exerciseService)
-	workoutHandler := NewWorkoutHandler(workoutService, publisher)
+	workoutHandler := NewWorkoutHandler(workoutService)
 	templateHandler := NewTemplateHandler(templateService, workoutService)
-	adminHandler := NewAdminHandler(adminService, workoutService, metricsService, publisher)
+	adminHandler := NewAdminHandler(adminService, workoutService, metricsService)
 	metricsHandler := NewMetricsHandler(metricsService)
 	webHandler := NewWebHandler(webDir)
 
 	r.Get("/", webHandler.Index)
 	r.Handle("/static/*", webHandler.StaticHandler())
 
-	// Swagger UI — public.
+	// Swagger UI — публичный, документация генерируется командой: swag init -g cmd/main.go
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
 
-	// pprof profiler — admin only.
+	// pprof профилировщик — только admin, чтобы не открывать CPU/heap наружу.
 	r.Route("/debug/pprof", func(r chi.Router) {
 		r.Use(AuthMiddleware(authService))
 		r.Use(AdminOnly)
@@ -52,15 +61,18 @@ func NewRouter(
 		r.HandleFunc("/profile", pprof.Profile)
 		r.HandleFunc("/symbol", pprof.Symbol)
 		r.HandleFunc("/trace", pprof.Trace)
-		r.HandleFunc("/{profile}", pprof.Index) // heap, goroutine, allocs, ...
+		r.HandleFunc("/{profile}", pprof.Index)
 	})
 
 	r.Route("/api", func(r chi.Router) {
+		// Публичные маршруты: регистрация и вход не требуют токена.
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
 			r.Post("/login", authHandler.Login)
 		})
 
+		// Все остальные /api/* маршруты требуют JWT.
+		// AuthMiddleware проверяет токен и кладёт user_id + role в context.
 		r.Group(func(r chi.Router) {
 			r.Use(AuthMiddleware(authService))
 
@@ -68,6 +80,7 @@ func NewRouter(
 				r.Get("/", exerciseHandler.List)
 				r.Get("/{id}", exerciseHandler.GetByID)
 
+				// Мутирующие операции над упражнениями — только для тренера/admin.
 				r.Group(func(r chi.Router) {
 					r.Use(AdminOnly)
 					r.Post("/", exerciseHandler.Create)
@@ -106,6 +119,7 @@ func NewRouter(
 				r.Delete("/{id}", metricsHandler.Delete)
 			})
 
+			// Панель тренера: все маршруты /admin/* проверяются AdminOnly.
 			r.Route("/admin", func(r chi.Router) {
 				r.Use(AdminOnly)
 				r.Get("/users", adminHandler.ListUsers)
