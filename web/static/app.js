@@ -505,18 +505,45 @@ function renderExercises(exercises) {
     if (!exercises.length) {
         list.innerHTML = '<div class="card"><p>Упражнения не найдены.</p></div>';
     } else {
+        const adminCols = currentUser?.role === 'admin';
         list.innerHTML = `<div class="card"><table>
-            <thead><tr><th>Название</th><th>Группа мышц</th><th>Описание</th>${currentUser?.role === 'admin' ? '<th></th>' : ''}</tr></thead>
+            <thead><tr><th>Название</th><th>Группа мышц</th><th>Описание</th>${adminCols ? '<th></th>' : ''}</tr></thead>
             <tbody>${exercises.map((e) => `
                 <tr>
                     <td>${esc(e.name)}</td>
                     <td><span class="badge">${esc(e.muscle_group)}</span></td>
                     <td style="color:var(--text-muted)">${esc(e.description)}</td>
-                    ${currentUser?.role === 'admin' ? `<td><button class="btn btn-sm btn-danger" onclick="deleteExercise(${e.id})">×</button></td>` : ''}
+                    ${adminCols ? `<td style="white-space:nowrap">
+                        <button class="btn btn-sm" onclick="editExercise(${e.id})" title="Редактировать">✎</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteExercise(${e.id})" title="Удалить">×</button>
+                    </td>` : ''}
                 </tr>`).join('')}
             </tbody></table></div>`;
     }
     if (currentUser?.role === 'admin') $('#admin-exercise-form').style.display = '';
+}
+
+let _exerciseEditId = null;
+
+function editExercise(id) {
+    const ex = (window._exercises || []).find((e) => e.id === id);
+    if (!ex) return;
+    _exerciseEditId = id;
+    $('#ex-name').value = ex.name;
+    $('#ex-muscle').value = ex.muscle_group;
+    $('#ex-desc').value = ex.description || '';
+    $('#exercise-form-title').textContent = 'Редактировать упражнение';
+    $('#ex-submit-btn').textContent = 'Сохранить';
+    $('#ex-cancel-btn').style.display = '';
+    $('#admin-exercise-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelEditExercise() {
+    _exerciseEditId = null;
+    $('#exercise-form').reset();
+    $('#exercise-form-title').textContent = 'Добавить упражнение';
+    $('#ex-submit-btn').textContent = 'Добавить';
+    $('#ex-cancel-btn').style.display = 'none';
 }
 
 $('#exercise-search')?.addEventListener('input', () => {
@@ -532,15 +559,21 @@ $('#exercise-filter')?.addEventListener('change', () => {
 
 $('#exercise-form').addEventListener('submit', async (e) => {
     e.preventDefault();
+    const body = {
+        name: $('#ex-name').value,
+        muscle_group: $('#ex-muscle').value,
+        description: $('#ex-desc').value,
+    };
     try {
-        await api('POST', '/exercises', {
-            name: $('#ex-name').value,
-            muscle_group: $('#ex-muscle').value,
-            description: $('#ex-desc').value,
-        });
-        toast('Упражнение добавлено!');
-        $('#ex-name').value = '';
-        $('#ex-desc').value = '';
+        if (_exerciseEditId) {
+            await api('PUT', '/exercises/' + _exerciseEditId, body);
+            toast('Упражнение обновлено!');
+            cancelEditExercise();
+        } else {
+            await api('POST', '/exercises', body);
+            toast('Упражнение добавлено!');
+            $('#exercise-form').reset();
+        }
         loadExercises();
     } catch (err) { toast(err.message, 'error'); }
 });

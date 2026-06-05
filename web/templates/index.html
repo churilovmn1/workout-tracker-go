@@ -110,7 +110,7 @@
             </div>
             <div id="exercises-list"></div>
             <div id="admin-exercise-form" class="card" style="display:none;margin-top:20px">
-                <h3 style="margin-bottom:16px">Добавить упражнение</h3>
+                <h3 id="exercise-form-title" style="margin-bottom:16px">Добавить упражнение</h3>
                 <form id="exercise-form">
                     <div class="form-group">
                         <label>Название</label>
@@ -133,7 +133,10 @@
                         <label>Описание</label>
                         <textarea id="ex-desc" rows="2"></textarea>
                     </div>
-                    <button type="submit" class="btn btn-primary">Добавить</button>
+                    <div style="display:flex;gap:8px">
+                        <button type="submit" id="ex-submit-btn" class="btn btn-primary">Добавить</button>
+                        <button type="button" id="ex-cancel-btn" class="btn" style="display:none" onclick="cancelEditExercise()">Отмена</button>
+                    </div>
                 </form>
             </div>
         </div>
